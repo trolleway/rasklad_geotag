@@ -3,12 +3,10 @@ import os
 from PyQt6.QtWidgets import QApplication, QMainWindow, QFileDialog, QVBoxLayout,QHBoxLayout, QPushButton, QTableWidget, QTableWidgetItem, QWidget, QLabel, QSizePolicy
 from PyQt6.QtCore import Qt, QDir,QObject, pyqtSlot, pyqtSignal
 from PyQt6.QtGui import QPixmap
-import folium
 from PyQt6.QtWebEngineWidgets import QWebEngineView
 from PyQt6.QtWebEngineCore import QWebEnginePage
 from PyQt6.QtCore import pyqtSlot, QUrl
 from PyQt6.QtWebChannel import QWebChannel
-from folium.plugins import MarkerCluster
 import exif
 
 class CustomWebEnginePage(QWebEnginePage):
