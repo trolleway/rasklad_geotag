@@ -106,11 +106,11 @@ class MapWidget(QWebEngineView):
         return leaflet_html
 
 
-class FileViewer(QMainWindow):
+class RaskladGeotag(QMainWindow):
     def __init__(self):
         super().__init__()
 
-        self.setWindowTitle("File Viewer")
+        self.setWindowTitle("Rasklad Geotag")
         self.setGeometry(100, 100, 800, 600)
         self.initial_coords = (55.666, 37.666)
 
@@ -354,7 +354,7 @@ class FileViewer(QMainWindow):
 
 def main():
     app = QApplication(sys.argv)
-    viewer = FileViewer()
+    viewer = RaskladGeotag()
     viewer.show()
     sys.exit(app.exec())
 
