@@ -174,10 +174,10 @@ class RaskladGeotag(QMainWindow):
 
         layout.addWidget(self.coordinates_label)
         layout.addWidget(self.save_button)
-
-
+        
         widget.setLayout(layout_horizontal)
         self.marker_coordinates = None
+        self.statusBar().showMessage("Select a directory with images to start")
 
     def toggle_filter(self):
         self.filter_has_coords_enabled = not self.filter_has_coords_enabled
@@ -186,11 +186,13 @@ class RaskladGeotag(QMainWindow):
             # Add your filter logic here
             self.display_files(self.folder_path)
             print("Filter enabled")
+            self.statusBar().showMessage("Showing only files without coordinates")
         else:
             self.toggle_button.setText("Hide files with coordinates")
             # Remove your filter logic here
             self.display_files(self.folder_path)
             print("Filter disabled")
+            self.statusBar().showMessage("Showing all files")
 
     def add_marker(self, lat=None, lon=None):
         if not lat or not lon:
@@ -320,6 +322,7 @@ class RaskladGeotag(QMainWindow):
         
         self.table.setSortingEnabled(True)  # Enable sorting after updating
         self.table.viewport().update()  # Explicitly trigger a redraw of the table
+        self.statusBar().showMessage(f"Select image in table to edit coordinates")
 
 
 
@@ -342,6 +345,7 @@ class RaskladGeotag(QMainWindow):
                         self.add_marker(f['lat'],f['lon'])
                     else:
                         self.add_marker()
+                    self.statusBar().showMessage(f"Move the marker to set coordinates for {file_name}")
             
 
     def format_date(self, timestamp):
