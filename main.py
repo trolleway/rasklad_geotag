@@ -64,7 +64,9 @@ class MapWidget(QWebEngineView):
             <div id="map" style="height: 600px;"></div>
             <div id="coordinates">Coordinates: </div>
             <script>
-                var map = L.map('map').setView([55.666, 37.666], 11);
+                var map = L.map('map',{
+            wheelPxPerZoomLevel: 10 // Add this option
+        }).setView([55.666, 37.666], 11);
                 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                 }).addTo(map);
@@ -110,6 +112,14 @@ class MapWidget(QWebEngineView):
                         } else {
                             console.log("jsHandler is not defined");
                         }
+                    });
+                    
+                    // Move marker to click location
+                    map.on('click', function(e) {
+                        var clickCoords = e.latlng;
+                        marker.setLatLng(clickCoords);
+                        marker.fire('dragend', { target: marker });
+                        document.getElementById('coordinates').innerText = "Coordinates: " + clickCoords.lat.toFixed(7) + ", " + clickCoords.lng.toFixed(7);
                     });
                 }
             </script>
