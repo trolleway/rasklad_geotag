@@ -86,18 +86,18 @@ class MapWidget(QWebEngineView):
                    removeMarkers();
                 
 
-                    // Custom circular icon
-                    var circularIcon = L.icon({
+                    // Custom  icon
+                    var squareIcon = L.icon({
                         iconUrl: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgdmlld0JveD0iMCAwIDEwMCAxMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHg9IjMiIHk9IjMiIHdpZHRoPSI5NCIgaGVpZ2h0PSI5NCIgc3Ryb2tlPSJibGFjayIgc3Ryb2tlLXdpZHRoPSI2IiBzdHJva2UtbWl0ZXJsaW1pdD0iMi42MTMxMyIvPgo8cGF0aCBkPSJNNTAgMFYxMDAiIHN0cm9rZT0iYmxhY2siIHN0cm9rZS13aWR0aD0iMyIvPgo8cGF0aCBkPSJNMCA1MEMyLjgxNDA3IDUwIDY3LjgzOTIgNTAgMTAwIDUwIiBzdHJva2U9ImJsYWNrIiBzdHJva2Utd2lkdGg9IjMiLz4KPC9zdmc+Cg==', // Base64 encoded SVG
                         iconSize: [20, 20],
                         iconAnchor: [10, 10]
                     });
 
-                    // Create a circle marker at the the map
+                    // Create a square marker at the the map
                     marker = L.marker(position, {
                     draggable: true,
                     autoPan: true,
-                    icon: circularIcon
+                    icon: squareIcon
 
                     }).addTo(map);
 
