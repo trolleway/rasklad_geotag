@@ -300,7 +300,20 @@ class RaskladGeotag(QMainWindow):
                         f"Coordinates not found for file {f['file_name']}"
                     )
 
-        self.display_files(self.folder_path)
+        has_coords1 = len([f for f in self.mainfiles if f.get("lat")])
+        has_coords2 = len(
+            [
+                f
+                for f in self.mainfiles
+                if f.get("modified") and f["modified"].get("lat")
+            ]
+        )
+        has_coords = has_coords1 + has_coords2
+        total = len(self.mainfiles)
+        self.statusBar().showMessage(
+            f"Coordinates saved to EXIF. {has_coords} of {total} files have coordinates"
+        )
+        self.display_files(self.folder_path, supress_statusbar=True)
 
     def open_folder_dialog(self):
         self.folder_path = QFileDialog.getExistingDirectory(self, "Select Folder")
@@ -353,7 +366,7 @@ class RaskladGeotag(QMainWindow):
 
             self.mainfiles.append(f)
 
-    def display_files(self, folder_path):
+    def display_files(self, folder_path, supress_statusbar=False):
         self.read_files_data(folder_path)
         self.folder_path = folder_path  # Save the selected folder path
 
@@ -379,7 +392,8 @@ class RaskladGeotag(QMainWindow):
 
         self.table.setSortingEnabled(True)  # Enable sorting after updating
         self.table.viewport().update()  # Explicitly trigger a redraw of the table
-        self.statusBar().showMessage(f"Select image in table to edit coordinates")
+        if not supress_statusbar:
+            self.statusBar().showMessage(f"Select image in table to edit coordinates")
 
     def display_image(self):
         selected_items = self.table.selectedItems()
