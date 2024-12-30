@@ -12,14 +12,17 @@ from PyQt6.QtWidgets import (
     QWidget,
     QLabel,
     QSizePolicy,
+    QListWidget,
 )
 from PyQt6.QtCore import Qt, QDir, QObject, pyqtSlot, pyqtSignal
-from PyQt6.QtGui import QPixmap
+from PyQt6.QtGui import QPixmap, QKeyEvent
 from PyQt6.QtWebEngineWidgets import QWebEngineView
 from PyQt6.QtWebEngineCore import QWebEnginePage
 from PyQt6.QtCore import pyqtSlot, QUrl
 from PyQt6.QtWebChannel import QWebChannel
 import exif
+import shapely.wkt
+import shapely.geometry
 
 
 class CustomWebEnginePage(QWebEnginePage):
@@ -86,8 +89,6 @@ class MapWidget(QWebEngineView):
                 }
                 function addMarker(position) {
                    removeMarkers();
-                
-
                     // Custom  icon
                     var squareIcon = L.icon({
                         iconUrl: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgdmlld0JveD0iMCAwIDEwMCAxMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHg9IjMiIHk9IjMiIHdpZHRoPSI5NCIgaGVpZ2h0PSI5NCIgc3Ryb2tlPSJibGFjayIgc3Ryb2tlLXdpZHRoPSI2IiBzdHJva2UtbWl0ZXJsaW1pdD0iMi42MTMxMyIvPgo8cGF0aCBkPSJNNTAgMFYxMDAiIHN0cm9rZT0iYmxhY2siIHN0cm9rZS13aWR0aD0iMyIvPgo8cGF0aCBkPSJNMCA1MEMyLjgxNDA3IDUwIDY3LjgzOTIgNTAgMTAwIDUwIiBzdHJva2U9ImJsYWNrIiBzdHJva2Utd2lkdGg9IjMiLz4KPC9zdmc+Cg==', // Base64 encoded SVG
@@ -121,7 +122,12 @@ class MapWidget(QWebEngineView):
                         marker.fire('dragend', { target: marker });
                         document.getElementById('coordinates').innerText = "Coordinates: " + clickCoords.lat.toFixed(7) + ", " + clickCoords.lng.toFixed(7);
                     });
-                }
+                    }
+                    function move_to_favorite_place(position, zoom) {
+                        map.setView(position, zoom);
+                        addMarker(position);
+                    }
+                    
             </script>
         </body>
         </html>
@@ -140,6 +146,20 @@ class RaskladGeotag(QMainWindow):
         self.mainfiles = []
         self.mainfile_selected = ""
         self.filter_has_coords_enabled = False  # Initial state of the filter
+
+        self.locationFavs = [
+            {"key": "3", "name": "Алмаз", "wkt_geom": "POINT(37.60635 55.71159)"},
+            {
+                "key": "4",
+                "name": "Университет",
+                "wkt_geom": "POINT(37.536613 55.692061)",
+            },
+            {
+                "key": "6",
+                "name": "Nagatinskaya",
+                "wkt_geom": "POINT(37.62372 55.68385)",
+            },
+        ]
 
         self.initUI()
 
@@ -167,6 +187,7 @@ class RaskladGeotag(QMainWindow):
 
         self.table = QTableWidget(self)
         self.table.setColumnCount(5)
+        self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.table.setHorizontalHeaderLabels(
             ["Filename", "Modification Date", "lat", "lon", "State"]
         )
@@ -196,6 +217,18 @@ class RaskladGeotag(QMainWindow):
         self.add_marker_button = QPushButton("Add Marker to Center")
         self.add_marker_button.clicked.connect(self.add_marker)
         layout_vertical_right.addWidget(self.add_marker_button)
+        map_fav_widget = QListWidget()
+        sorted_locationFavs = sorted(
+            self.locationFavs, key=lambda x: (x["key"], x["name"])
+        )
+
+        for el in sorted_locationFavs:
+            map_fav_widget.addItem(f"{el['key']} {el['name']}")
+        # map_fav_widget.addItems(
+        #    ["1 Октябрьская", "2 Шаболовская", "3 Алмаз", "4 Университет"]
+        # )
+        layout_vertical_right.addWidget(map_fav_widget)
+
         self.toggle_button = QPushButton("Hide files with coordinates", self)
         self.toggle_button.clicked.connect(self.toggle_filter)
         layout.addWidget(self.toggle_button)
@@ -221,6 +254,25 @@ class RaskladGeotag(QMainWindow):
             self.display_files(self.folder_path)
             print("Filter disabled")
             self.statusBar().showMessage("Showing all files")
+
+    def keyPressEvent(self, event: QKeyEvent):
+
+        key_pressed = event.text()
+        for fav in self.locationFavs:
+            if fav["key"] == key_pressed:
+                self.statusBar().showMessage(f'You pressed the key for {fav["name"]}')
+                # wkt_point = "POINT(37.620393 55.734036)"
+                wkt_point = fav.get("wkt_geom")
+                if not wkt_point:
+                    return
+                retrieved_point = shapely.wkt.loads(wkt_point)
+                retrieved_latitude = retrieved_point.y
+                retrieved_longitude = retrieved_point.x
+                zoom = 14
+                js_code = f"move_to_favorite_place([{retrieved_latitude}, {retrieved_longitude}],{zoom});"
+                self.map_widget.page().runJavaScript(js_code)
+                return
+        super().keyPressEvent(event)
 
     def add_marker(self, lat=None, lon=None):
         if not lat or not lon:
