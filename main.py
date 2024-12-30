@@ -14,7 +14,7 @@ from PyQt6.QtWidgets import (
     QSizePolicy,
     QListWidget,
 )
-from PyQt6.QtCore import Qt, QDir, QObject, pyqtSlot, pyqtSignal
+from PyQt6.QtCore import Qt, QDir, QObject, pyqtSlot, pyqtSignal, QEvent
 from PyQt6.QtGui import QPixmap, QKeyEvent
 from PyQt6.QtWebEngineWidgets import QWebEngineView
 from PyQt6.QtWebEngineCore import QWebEnginePage
@@ -155,7 +155,17 @@ class RaskladGeotag(QMainWindow):
                 "wkt_geom": "POINT(37.536613 55.692061)",
             },
             {
+                "key": "5",
+                "name": "Тульская",
+                "wkt_geom": "POINT(37.62311 55.70441)",
+            },
+            {
                 "key": "6",
+                "name": "Верхние Котлы",
+                "wkt_geom": "POINT(37.62255 55.68992)",
+            },
+            {
+                "key": "7",
                 "name": "Nagatinskaya",
                 "wkt_geom": "POINT(37.62372 55.68385)",
             },
@@ -187,12 +197,14 @@ class RaskladGeotag(QMainWindow):
 
         self.table = QTableWidget(self)
         self.table.setColumnCount(5)
-        self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        # self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.table.setHorizontalHeaderLabels(
             ["Filename", "Modification Date", "lat", "lon", "State"]
         )
-        self.table.setColumnWidth(0, 400)
+        self.table.setColumnWidth(0, 200)
+        self.table.setColumnWidth(1, 200)
         self.table.itemSelectionChanged.connect(self.display_image)
+        self.table.installEventFilter(self)
 
         self.file_path_label = QLabel(self)
         self.file_path_label.setText("Selected File Path: ")
@@ -254,6 +266,12 @@ class RaskladGeotag(QMainWindow):
             self.display_files(self.folder_path)
             print("Filter disabled")
             self.statusBar().showMessage("Showing all files")
+
+    def eventFilter(self, source, event):
+        if event.type() == QEvent.Type.KeyPress and source is self.table:
+            self.keyPressEvent(event)
+            return True
+        return super().eventFilter(source, event)
 
     def keyPressEvent(self, event: QKeyEvent):
 
@@ -437,10 +455,23 @@ class RaskladGeotag(QMainWindow):
 
         for i, f in enumerate(files):
 
-            self.table.setItem(i, 0, QTableWidgetItem(f["file_name"]))
-            self.table.setItem(i, 1, QTableWidgetItem(f.get("datetime_original")))
-            self.table.setItem(i, 2, QTableWidgetItem(str(f.get("lat", ""))))
-            self.table.setItem(i, 3, QTableWidgetItem(str(f.get("lon", ""))))
+            item_file_name = QTableWidgetItem(f["file_name"])
+            item_datetime = QTableWidgetItem(f.get("datetime_original"))
+            item_lat = QTableWidgetItem(str(f.get("lat", "")))
+            item_lon = QTableWidgetItem(str(f.get("lon", "")))
+
+            # Disable editing for each item
+            item_file_name.setFlags(
+                item_file_name.flags() & ~Qt.ItemFlag.ItemIsEditable
+            )
+            item_datetime.setFlags(item_datetime.flags() & ~Qt.ItemFlag.ItemIsEditable)
+            item_lat.setFlags(item_lat.flags() & ~Qt.ItemFlag.ItemIsEditable)
+            item_lon.setFlags(item_lon.flags() & ~Qt.ItemFlag.ItemIsEditable)
+
+            self.table.setItem(i, 0, item_file_name)
+            self.table.setItem(i, 1, item_datetime)
+            self.table.setItem(i, 2, item_lat)
+            self.table.setItem(i, 3, item_lon)
 
         self.table.setSortingEnabled(True)  # Enable sorting after updating
         self.table.viewport().update()  # Explicitly trigger a redraw of the table
