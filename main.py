@@ -1,7 +1,19 @@
 import sys
 import os
-from PyQt6.QtWidgets import QApplication, QMainWindow, QFileDialog, QVBoxLayout,QHBoxLayout, QPushButton, QTableWidget, QTableWidgetItem, QWidget, QLabel, QSizePolicy
-from PyQt6.QtCore import Qt, QDir,QObject, pyqtSlot, pyqtSignal
+from PyQt6.QtWidgets import (
+    QApplication,
+    QMainWindow,
+    QFileDialog,
+    QVBoxLayout,
+    QHBoxLayout,
+    QPushButton,
+    QTableWidget,
+    QTableWidgetItem,
+    QWidget,
+    QLabel,
+    QSizePolicy,
+)
+from PyQt6.QtCore import Qt, QDir, QObject, pyqtSlot, pyqtSignal
 from PyQt6.QtGui import QPixmap
 from PyQt6.QtWebEngineWidgets import QWebEngineView
 from PyQt6.QtWebEngineCore import QWebEnginePage
@@ -9,9 +21,11 @@ from PyQt6.QtCore import pyqtSlot, QUrl
 from PyQt6.QtWebChannel import QWebChannel
 import exif
 
+
 class CustomWebEnginePage(QWebEnginePage):
     def javaScriptConsoleMessage(self, level, message, line_number, source_id):
         print(f"JavaScript console message: {message} (line: {line_number})")
+
 
 class JavaScriptHandler(QObject):
     coordinatesUpdated = pyqtSignal(str, str)
@@ -20,6 +34,7 @@ class JavaScriptHandler(QObject):
     def coordinatesUpdatedSlot(self, lat, lng):
         self.coordinatesUpdated.emit(lat, lng)
 
+
 class MapWidget(QWebEngineView):
     def __init__(self):
         super().__init__()
@@ -27,7 +42,7 @@ class MapWidget(QWebEngineView):
         self.channel = QWebChannel()
         self.jsHandler = JavaScriptHandler()
 
-        self.channel.registerObject('jsHandler', self.jsHandler)
+        self.channel.registerObject("jsHandler", self.jsHandler)
         self.page().setWebChannel(self.channel)
 
         self.setHtml(self.get_initial_map())
@@ -112,8 +127,8 @@ class RaskladGeotag(QMainWindow):
         self.setGeometry(100, 100, 800, 600)
         self.initial_coords = (55.666, 37.666)
 
-        self.mainfiles=[]
-        self.mainfile_selected=''
+        self.mainfiles = []
+        self.mainfile_selected = ""
         self.filter_has_coords_enabled = False  # Initial state of the filter
 
         self.initUI()
@@ -121,17 +136,18 @@ class RaskladGeotag(QMainWindow):
     def initUI(self):
         widget = QWidget()
         self.setCentralWidget(widget)
-        
+
         layout_horizontal = QHBoxLayout()
         layout = QVBoxLayout()
 
         self.label = QLabel(self)
         self.label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        
+
         self.label.setMinimumHeight(400)
         self.label.setScaledContents(True)
-        self.label.setSizePolicy(QSizePolicy.Policy.MinimumExpanding, QSizePolicy.Policy.Preferred)
-        
+        self.label.setSizePolicy(
+            QSizePolicy.Policy.MinimumExpanding, QSizePolicy.Policy.Preferred
+        )
 
         self.select_button = QPushButton("Select Folder", self)
         self.select_button.clicked.connect(self.open_folder_dialog)
@@ -141,20 +157,20 @@ class RaskladGeotag(QMainWindow):
 
         self.table = QTableWidget(self)
         self.table.setColumnCount(5)
-        self.table.setHorizontalHeaderLabels(["Filename", "Modification Date","lat","lon",'State'])
+        self.table.setHorizontalHeaderLabels(
+            ["Filename", "Modification Date", "lat", "lon", "State"]
+        )
         self.table.setColumnWidth(0, 400)
         self.table.itemSelectionChanged.connect(self.display_image)
 
         self.file_path_label = QLabel(self)
         self.file_path_label.setText("Selected File Path: ")
 
-
-
         layout.addWidget(self.label)
         layout.addWidget(self.select_button)
         layout.addWidget(self.table)
         layout.addWidget(self.file_path_label)
-        
+
         layout_horizontal.addLayout(layout)
 
         self.map_widget = MapWidget()
@@ -163,7 +179,9 @@ class RaskladGeotag(QMainWindow):
 
         layout_horizontal.addLayout(layout_vertical_right)
         self.coordinates_label = QLabel("Coordinates: ")
-        self.map_widget.jsHandler.coordinatesUpdated.connect(self.update_coordinates_label)
+        self.map_widget.jsHandler.coordinatesUpdated.connect(
+            self.update_coordinates_label
+        )
 
         self.add_marker_button = QPushButton("Add Marker to Center")
         self.add_marker_button.clicked.connect(self.add_marker)
@@ -174,7 +192,7 @@ class RaskladGeotag(QMainWindow):
 
         layout.addWidget(self.coordinates_label)
         layout.addWidget(self.save_button)
-        
+
         widget.setLayout(layout_horizontal)
         self.marker_coordinates = None
         self.statusBar().showMessage("Select a directory with images to start")
@@ -199,28 +217,33 @@ class RaskladGeotag(QMainWindow):
             js_code = "addMarker(map.getCenter());"
         else:
             js_code = f"addMarker([{lat}, {lon}]);"
-    
+
         self.map_widget.page().runJavaScript(js_code)
 
     @pyqtSlot(str, str)
     def update_coordinates_label(self, lat, lon):
         if self.mainfile_selected:
-            self.coordinates_label.setText(f"Coordinates: {lat} {lon} for file {self.mainfile_selected}")
+            self.coordinates_label.setText(
+                f"Coordinates: {lat} {lon} for file {self.mainfile_selected}"
+            )
             for i, f in enumerate(self.mainfiles):
-                if f['file_path']==self.mainfile_selected:
-                    f['modified']['lat']=lat
-                    f['modified']['lon']=lon
-                    f['is_modified']=True
+                if f["file_path"] == self.mainfile_selected:
+                    f["modified"]["lat"] = lat
+                    f["modified"]["lon"] = lon
+                    f["is_modified"] = True
 
                     row_count = self.table.rowCount()
                     for row in range(row_count):
                         item = self.table.item(row, 0)  # Get the item in column 0
-                        if item and item.text() == f['file_name']:
-                            self.table.setItem(row, 2, QTableWidgetItem(f'{lat} modified'))  
-                            self.table.setItem(row, 3, QTableWidgetItem(f'{lon} modified'))  
+                        if item and item.text() == f["file_name"]:
+                            self.table.setItem(
+                                row, 2, QTableWidgetItem(f"{lat} modified")
+                            )
+                            self.table.setItem(
+                                row, 3, QTableWidgetItem(f"{lon} modified")
+                            )
 
                     break
-   
 
     def save2exif(self):
         def to_deg(value, loc):
@@ -239,92 +262,114 @@ class RaskladGeotag(QMainWindow):
             return deg, min, sec, loc_value
 
         for i, f in enumerate(self.mainfiles):
-            if f.get('is_modified'):
-                assert f['modified']['lat'] and f['modified']['lon']
-                lat=f['modified']['lat']
-                lon=f['modified']['lon']
+            if f.get("is_modified"):
+                assert f["modified"]["lat"] and f["modified"]["lon"]
+                lat = f["modified"]["lat"]
+                lon = f["modified"]["lon"]
                 if lat and lon:
-                    lat_deg = to_deg(lat, ('S', 'N'))
-                    lon_deg = to_deg(lon, ('W', 'E'))
-                    with open(f['file_path'] , 'rb') as image_file:
+                    lat_deg = to_deg(lat, ("S", "N"))
+                    lon_deg = to_deg(lon, ("W", "E"))
+                    creation_time = os.path.getctime(f["file_path"])
+                    mod_time = os.path.getmtime(f["file_path"])
+
+                    with open(f["file_path"], "rb") as image_file:
                         img = exif.Image(image_file)
                     img.gps_latitude = lat_deg[:3]
                     img.gps_latitude_ref = lat_deg[3]
                     img.gps_longitude = lon_deg[:3]
                     img.gps_longitude_ref = lon_deg[3]
-                    with open(f['file_path'], 'wb') as new_image_file:
+                    with open(f["file_path"], "wb") as new_image_file:
                         new_image_file.write(img.get_file())
-                        
-                    self.coordinates_label.setText(f"Coordinates: {lat} {lon} for file {f['file_name']} saved to EXIF")
+                    os.utime(f["file_path"], (creation_time, mod_time))
+
+                    self.coordinates_label.setText(
+                        f"Coordinates: {lat} {lon} for file {f['file_name']} saved to EXIF"
+                    )
                 else:
-                    self.coordinates_label.setText(f"Coordinates not found for file {f['file_name']}")
+                    self.coordinates_label.setText(
+                        f"Coordinates not found for file {f['file_name']}"
+                    )
 
         self.display_files(self.folder_path)
-
 
     def open_folder_dialog(self):
         self.folder_path = QFileDialog.getExistingDirectory(self, "Select Folder")
         if self.folder_path:
             self.display_files(self.folder_path)
 
-    def read_files_data(self,folder_path):
-        self.mainfiles=[]
-        print('mainfiles cleared')
+    def read_files_data(self, folder_path):
+        self.mainfiles = []
+        print("mainfiles cleared")
         files = os.listdir(folder_path)
         for i, file_name in enumerate(files):
-            if not file_name.lower().endswith('.jpg'): continue
-            f=dict()
-            f['modified']=dict()
-            f['file_path'] = os.path.join(folder_path, file_name)
-            f['file_name'] = file_name
-            f['file_info'] = os.stat(f['file_path'])
-            f['modification_date'] = self.format_date(f['file_info'].st_mtime)
+            if not file_name.lower().endswith(".jpg"):
+                continue
+            f = dict()
+            f["modified"] = dict()
+            f["file_path"] = os.path.join(folder_path, file_name)
+            f["file_name"] = file_name
+            f["file_info"] = os.stat(f["file_path"])
+            f["modification_date"] = self.format_date(f["file_info"].st_mtime)
             try:
-                with open(f['file_path'], 'rb') as image_file:
+                with open(f["file_path"], "rb") as image_file:
                     img = exif.Image(image_file)
-                    f['model'] = img.get('model')
-                    f['datetime_original'] = img.get('datetime_original')
+                    f["model"] = img.get("model")
+                    f["datetime_original"] = img.get("datetime_original")
 
-                    if img.has_exif and img.get('gps_latitude') and img.get('gps_longitude'):
-                        lat = img.gps_latitude[0] + img.gps_latitude[1] / 60 + img.gps_latitude[2] / 3600
-                        lon = img.gps_longitude[0] + img.gps_longitude[1] / 60 + img.gps_longitude[2] / 3600
-                        if img.gps_latitude_ref == 'S': lat = -lat
-                        if img.gps_longitude_ref == 'W': lon = -lon
+                    if (
+                        img.has_exif
+                        and img.get("gps_latitude")
+                        and img.get("gps_longitude")
+                    ):
+                        lat = (
+                            img.gps_latitude[0]
+                            + img.gps_latitude[1] / 60
+                            + img.gps_latitude[2] / 3600
+                        )
+                        lon = (
+                            img.gps_longitude[0]
+                            + img.gps_longitude[1] / 60
+                            + img.gps_longitude[2] / 3600
+                        )
+                        if img.gps_latitude_ref == "S":
+                            lat = -lat
+                        if img.gps_longitude_ref == "W":
+                            lon = -lon
 
-                        f['lat'] = lat
-                        f['lon'] = lon
+                        f["lat"] = lat
+                        f["lon"] = lon
             except:
-                print('exif read error '+f['file_path'])
+                print("exif read error " + f["file_path"])
 
-                
-            
             self.mainfiles.append(f)
 
     def display_files(self, folder_path):
         self.read_files_data(folder_path)
         self.folder_path = folder_path  # Save the selected folder path
-        
+
         self.table.setSortingEnabled(False)  # Disable sorting while updating
         self.table.setRowCount(0)
-        
-        files=self.mainfiles
+
+        files = self.mainfiles
         if self.filter_has_coords_enabled:
-            files = [f for f in self.mainfiles if f.get('lat') is None and f.get('lon') is None]
-        
+            files = [
+                f
+                for f in self.mainfiles
+                if f.get("lat") is None and f.get("lon") is None
+            ]
+
         self.table.setRowCount(len(files))
-    
+
         for i, f in enumerate(files):
-            
-            self.table.setItem(i, 0, QTableWidgetItem(f['file_name']))
-            self.table.setItem(i, 1, QTableWidgetItem(f.get('datetime_original')))
-            self.table.setItem(i, 2, QTableWidgetItem(str(f.get('lat',''))))
-            self.table.setItem(i, 3, QTableWidgetItem(str(f.get('lon',''))))
-        
+
+            self.table.setItem(i, 0, QTableWidgetItem(f["file_name"]))
+            self.table.setItem(i, 1, QTableWidgetItem(f.get("datetime_original")))
+            self.table.setItem(i, 2, QTableWidgetItem(str(f.get("lat", ""))))
+            self.table.setItem(i, 3, QTableWidgetItem(str(f.get("lon", ""))))
+
         self.table.setSortingEnabled(True)  # Enable sorting after updating
         self.table.viewport().update()  # Explicitly trigger a redraw of the table
         self.statusBar().showMessage(f"Select image in table to edit coordinates")
-
-
 
     def display_image(self):
         selected_items = self.table.selectedItems()
@@ -334,24 +379,31 @@ class RaskladGeotag(QMainWindow):
             self.mainfile_selected = full_path
             self.file_path_label.setText(f"Selected File Path: {full_path}")
             pixmap = QPixmap(full_path)
-            self.label.setPixmap(pixmap.scaled(self.label.width(), self.label.height(), Qt.AspectRatioMode.KeepAspectRatio))
+            self.label.setPixmap(
+                pixmap.scaled(
+                    self.label.width(),
+                    self.label.height(),
+                    Qt.AspectRatioMode.KeepAspectRatio,
+                )
+            )
             self.label.setScaledContents(True)
-            
+
             for i, f in enumerate(self.mainfiles):
-                if f['file_path']==full_path:
-                    if f['modified'].get('lat') and f['modified'].get('lon'):
-                        self.add_marker(f['modified']['lat'],f['modified']['lon'])
-                    elif f.get('lat') and f.get('lon'):
-                        self.add_marker(f['lat'],f['lon'])
+                if f["file_path"] == full_path:
+                    if f["modified"].get("lat") and f["modified"].get("lon"):
+                        self.add_marker(f["modified"]["lat"], f["modified"]["lon"])
+                    elif f.get("lat") and f.get("lon"):
+                        self.add_marker(f["lat"], f["lon"])
                     else:
                         self.add_marker()
-                    self.statusBar().showMessage(f"Move the marker to set coordinates for {file_name}")
-            
+                    self.statusBar().showMessage(
+                        f"Move the marker to set coordinates for {file_name}"
+                    )
 
     def format_date(self, timestamp):
         from datetime import datetime
-        return datetime.fromtimestamp(timestamp).strftime('%Y-%m-%d %H:%M:%S')
 
+        return datetime.fromtimestamp(timestamp).strftime("%Y-%m-%d %H:%M:%S")
 
 
 def main():
@@ -360,5 +412,6 @@ def main():
     viewer.show()
     sys.exit(app.exec())
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()
