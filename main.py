@@ -231,15 +231,7 @@ class RaskladGeotag(QMainWindow):
         self.add_marker_button.clicked.connect(self.add_marker)
         layout_vertical_right.addWidget(self.add_marker_button)
         map_fav_widget = QListWidget()
-        sorted_locationFavs = sorted(
-            self.locationFavs, key=lambda x: (x["key"], x["name"])
-        )
 
-        for el in sorted_locationFavs:
-            map_fav_widget.addItem(f"{el['key']} {el['name']}")
-        # map_fav_widget.addItems(
-        #    ["1 Октябрьская", "2 Шаболовская", "3 Алмаз", "4 Университет"]
-        # )
         layout_vertical_right.addWidget(map_fav_widget)
 
         self.toggle_button = QPushButton("Hide files with coordinates", self)
@@ -253,6 +245,15 @@ class RaskladGeotag(QMainWindow):
         self.marker_coordinates = None
         self.statusBar().showMessage("Select a directory with images to start")
         self.create_main_menu()
+        self.display_sorted_location_favorites(map_fav_widget)
+
+    def display_sorted_location_favorites(self, map_fav_widget):
+        sorted_locationFavs = sorted(
+            self.locationFavs, key=lambda x: (x["key"], x["name"])
+        )
+        map_fav_widget.clear()
+        for el in sorted_locationFavs:
+            map_fav_widget.addItem(f"{el['key']} {el['name']}")
 
     def create_main_menu(self):
         menubar = self.menuBar()
