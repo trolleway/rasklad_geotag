@@ -279,12 +279,12 @@ class RaskladGeotag(QMainWindow):
 
         self.table = QTableWidget(self)
         self.table.setColumnCount(5)
-        # self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+
         self.table.setHorizontalHeaderLabels(
-            ["Filename", "Modification Date", "lat", "lon", "State"]
+            ["Filename", "Create Date", "lat", "lon", "State"]
         )
         self.table.setColumnWidth(0, 200)
-        self.table.setColumnWidth(1, 200)
+        self.table.setColumnWidth(1, 180)
         self.table.itemSelectionChanged.connect(self.display_image)
         self.table.installEventFilter(self)
 
@@ -340,14 +340,14 @@ class RaskladGeotag(QMainWindow):
         menubar = self.menuBar()
         file_menu = menubar.addMenu("File")
 
+        edit_favorites_action = QAction("Edit Favorites", self)
+        edit_favorites_action.triggered.connect(self.open_edit_favorites_dialog)
+        file_menu.addAction(edit_favorites_action)
+
         exit_action = QAction("Exit", self)
         exit_action.setShortcut("Ctrl+Q")
         exit_action.triggered.connect(self.close)
         file_menu.addAction(exit_action)
-
-        edit_favorites_action = QAction("Edit Favorites", self)
-        edit_favorites_action.triggered.connect(self.open_edit_favorites_dialog)
-        file_menu.addAction(edit_favorites_action)
 
     def open_edit_favorites_dialog(self):
         dialog = EditFavoritesDialog(self)
@@ -580,6 +580,7 @@ class RaskladGeotag(QMainWindow):
             self.table.setItem(i, 2, item_lat)
             self.table.setItem(i, 3, item_lon)
 
+        self.table.sortByColumn(1, Qt.SortOrder.AscendingOrder)
         self.table.setSortingEnabled(True)  # Enable sorting after updating
         self.table.viewport().update()  # Explicitly trigger a redraw of the table
         if not supress_statusbar:
