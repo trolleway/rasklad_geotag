@@ -286,7 +286,7 @@ class RaskladGeotag(QMainWindow):
                 retrieved_point = shapely.wkt.loads(wkt_point)
                 retrieved_latitude = retrieved_point.y
                 retrieved_longitude = retrieved_point.x
-                zoom = 14
+                zoom = 16
                 js_code = f"move_to_favorite_place([{retrieved_latitude}, {retrieved_longitude}],{zoom});"
                 self.map_widget.page().runJavaScript(js_code)
                 return
