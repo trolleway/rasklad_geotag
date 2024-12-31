@@ -13,9 +13,10 @@ from PyQt6.QtWidgets import (
     QLabel,
     QSizePolicy,
     QListWidget,
+    QMenuBar,
 )
 from PyQt6.QtCore import Qt, QDir, QObject, pyqtSlot, pyqtSignal, QEvent
-from PyQt6.QtGui import QPixmap, QKeyEvent
+from PyQt6.QtGui import QPixmap, QKeyEvent, QAction
 from PyQt6.QtWebEngineWidgets import QWebEngineView
 from PyQt6.QtWebEngineCore import QWebEnginePage
 from PyQt6.QtCore import pyqtSlot, QUrl
@@ -251,6 +252,17 @@ class RaskladGeotag(QMainWindow):
         widget.setLayout(layout_horizontal)
         self.marker_coordinates = None
         self.statusBar().showMessage("Select a directory with images to start")
+        self.create_main_menu()
+
+    def create_main_menu(self):
+        menubar = self.menuBar()
+        file_menu = menubar.addMenu("File")
+
+        exit_action = QAction("Exit", self)
+        exit_action.setShortcut("Ctrl+Q")
+        exit_action.triggered.connect(self.close)
+
+        file_menu.addAction(exit_action)
 
     def toggle_filter(self):
         self.filter_has_coords_enabled = not self.filter_has_coords_enabled
