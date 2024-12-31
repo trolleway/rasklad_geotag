@@ -14,12 +14,16 @@ from PyQt6.QtWidgets import (
     QSizePolicy,
     QListWidget,
     QMenuBar,
+    QDialog,
+    QLineEdit,
+    QFormLayout,
+    QMessageBox,
+    QInputDialog,
 )
-from PyQt6.QtCore import Qt, QDir, QObject, pyqtSlot, pyqtSignal, QEvent
+from PyQt6.QtCore import Qt, QDir, QObject, pyqtSlot, pyqtSignal, QEvent, QSettings
 from PyQt6.QtGui import QPixmap, QKeyEvent, QAction
 from PyQt6.QtWebEngineWidgets import QWebEngineView
 from PyQt6.QtWebEngineCore import QWebEnginePage
-from PyQt6.QtCore import pyqtSlot, QUrl
 from PyQt6.QtWebChannel import QWebChannel
 import exif
 import shapely.wkt
@@ -136,6 +140,103 @@ class MapWidget(QWebEngineView):
         return leaflet_html
 
 
+class EditFavoritesDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Edit Favorites")
+        self.setGeometry(150, 150, 400, 300)
+        self.layout = QVBoxLayout()
+        self.fav_list = QListWidget()
+        self.layout.addWidget(self.fav_list)
+
+        self.add_button = QPushButton("Add Favorite")
+        self.edit_button = QPushButton("Edit Favorite")
+        self.remove_button = QPushButton("Remove Favorite")
+
+        self.layout.addWidget(self.add_button)
+        self.layout.addWidget(self.edit_button)
+        self.layout.addWidget(self.remove_button)
+
+        self.setLayout(self.layout)
+
+        self.add_button.clicked.connect(self.add_favorite)
+        self.edit_button.clicked.connect(self.edit_favorite)
+        self.remove_button.clicked.connect(self.remove_favorite)
+
+        self.parent = parent
+        self.load_favorites()
+
+    def load_favorites(self):
+        self.fav_list.clear()
+        for fav in self.parent.locationFavs:
+            self.fav_list.addItem(f"{fav['key']} {fav['name']}")
+
+    def add_favorite(self):
+        key, ok = QInputDialog.getText(
+            self, "Add Favorite", "Enter key: One didgit or letter, case insensitive"
+        )
+        if ok and key:
+            name, ok = QInputDialog.getText(self, "Add Favorite", "Enter name:")
+            if ok and name:
+                wkt_geom = (
+                    f"POINT({self.parent.mapMarkerLon} {self.parent.mapMarkerLat})"
+                )
+                self.parent.locationFavs.append(
+                    {"key": key.upper(), "name": name, "wkt_geom": wkt_geom}
+                )
+                self.save_favorites()
+                self.load_favorites()
+                self.parent.display_sorted_location_favorites(
+                    self.parent.map_fav_widget
+                )
+
+    def edit_favorite(self):
+        current_item = self.fav_list.currentItem()
+        if current_item:
+            key, name = current_item.text().split(" ", 1)
+            new_key, ok = QInputDialog.getText(
+                self,
+                "Edit Favorite",
+                "Enter new key: One didgit or letter, case insensitive",
+                text=key,
+            )
+            if ok and new_key:
+                new_name, ok = QInputDialog.getText(
+                    self, "Edit Favorite", "Enter new name:", text=name
+                )
+                if ok and new_name:
+                    for fav in self.parent.locationFavs:
+                        if fav["key"] == key and fav["name"] == name:
+                            fav["key"] = new_key.upper()
+                            fav["name"] = new_name
+                            fav["wkt_geom"] = (
+                                f"POINT({self.parent.map_widget.center().lng} {self.parent.map_widget.center().lat})"
+                            )
+                            break
+                    self.save_favorites()
+                    self.load_favorites()
+                    self.parent.display_sorted_location_favorites(
+                        self.parent.map_fav_widget
+                    )
+
+    def remove_favorite(self):
+        current_item = self.fav_list.currentItem()
+        if current_item:
+            key, name = current_item.text().split(" ", 1)
+            self.parent.locationFavs = [
+                fav
+                for fav in self.parent.locationFavs
+                if not (fav["key"] == key and fav["name"] == name)
+            ]
+            self.save_favorites()
+            self.load_favorites()
+            self.parent.display_sorted_location_favorites(self.parent.map_fav_widget)
+
+    def save_favorites(self):
+        settings = QSettings("Trolleway", "RaskladGeotag")
+        settings.setValue("locationFavs", self.parent.locationFavs)
+
+
 class RaskladGeotag(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -148,29 +249,9 @@ class RaskladGeotag(QMainWindow):
         self.mainfile_selected = ""
         self.filter_has_coords_enabled = False  # Initial state of the filter
 
-        self.locationFavs = [
-            {"key": "3", "name": "Алмаз", "wkt_geom": "POINT(37.60635 55.71159)"},
-            {
-                "key": "4",
-                "name": "Университет",
-                "wkt_geom": "POINT(37.536613 55.692061)",
-            },
-            {
-                "key": "5",
-                "name": "Тульская",
-                "wkt_geom": "POINT(37.62311 55.70441)",
-            },
-            {
-                "key": "6",
-                "name": "Верхние Котлы",
-                "wkt_geom": "POINT(37.62255 55.68992)",
-            },
-            {
-                "key": "7",
-                "name": "Nagatinskaya",
-                "wkt_geom": "POINT(37.62372 55.68385)",
-            },
-        ]
+        self.locationFavs = self.load_favorites()
+        self.mapMarkerLat = None
+        self.mapMarkerLon = None
 
         self.initUI()
 
@@ -224,15 +305,15 @@ class RaskladGeotag(QMainWindow):
         layout_horizontal.addLayout(layout_vertical_right)
         self.coordinates_label = QLabel("Coordinates: ")
         self.map_widget.jsHandler.coordinatesUpdated.connect(
-            self.update_coordinates_label
+            self.update_coordinate_in_mainfiles
         )
 
         self.add_marker_button = QPushButton("Add Marker to Center")
         self.add_marker_button.clicked.connect(self.add_marker)
         layout_vertical_right.addWidget(self.add_marker_button)
-        map_fav_widget = QListWidget()
+        self.map_fav_widget = QListWidget()
 
-        layout_vertical_right.addWidget(map_fav_widget)
+        layout_vertical_right.addWidget(self.map_fav_widget)
 
         self.toggle_button = QPushButton("Hide files with coordinates", self)
         self.toggle_button.clicked.connect(self.toggle_filter)
@@ -245,7 +326,7 @@ class RaskladGeotag(QMainWindow):
         self.marker_coordinates = None
         self.statusBar().showMessage("Select a directory with images to start")
         self.create_main_menu()
-        self.display_sorted_location_favorites(map_fav_widget)
+        self.display_sorted_location_favorites(self.map_fav_widget)
 
     def display_sorted_location_favorites(self, map_fav_widget):
         sorted_locationFavs = sorted(
@@ -262,8 +343,19 @@ class RaskladGeotag(QMainWindow):
         exit_action = QAction("Exit", self)
         exit_action.setShortcut("Ctrl+Q")
         exit_action.triggered.connect(self.close)
-
         file_menu.addAction(exit_action)
+
+        edit_favorites_action = QAction("Edit Favorites", self)
+        edit_favorites_action.triggered.connect(self.open_edit_favorites_dialog)
+        file_menu.addAction(edit_favorites_action)
+
+    def open_edit_favorites_dialog(self):
+        dialog = EditFavoritesDialog(self)
+        dialog.exec()
+
+    def load_favorites(self):
+        settings = QSettings("Trolleway", "RaskladGeotag")
+        return settings.value("locationFavs", [])
 
     def toggle_filter(self):
         self.filter_has_coords_enabled = not self.filter_has_coords_enabled
@@ -290,7 +382,7 @@ class RaskladGeotag(QMainWindow):
 
         key_pressed = event.text()
         for fav in self.locationFavs:
-            if fav["key"] == key_pressed:
+            if fav["key"].upper() == key_pressed.upper():
                 self.statusBar().showMessage(f'You pressed the key for {fav["name"]}')
                 # wkt_point = "POINT(37.620393 55.734036)"
                 wkt_point = fav.get("wkt_geom")
@@ -314,7 +406,9 @@ class RaskladGeotag(QMainWindow):
         self.map_widget.page().runJavaScript(js_code)
 
     @pyqtSlot(str, str)
-    def update_coordinates_label(self, lat, lon):
+    def update_coordinate_in_mainfiles(self, lat, lon):
+        self.mapMarkerLat = lat
+        self.mapMarkerLon = lon
         if self.mainfile_selected:
             self.coordinates_label.setText(
                 f"Coordinates: {lat} {lon} for file {self.mainfile_selected}"
