@@ -69,7 +69,7 @@ class MapWidget(QWebEngineView):
             <style> #map { width: 100%; height: 100%; } </style>
         </head>
         <body>
-            <div id="map" style="height: 600px;"></div>
+            <div id="map" style="height: 500px;"></div>
             <div id="coordinates">Coordinates: </div>
             <script>
                 var map = L.map('map',{
@@ -287,6 +287,7 @@ class RaskladGeotag(QMainWindow):
         self.table.setColumnWidth(1, 180)
         self.table.itemSelectionChanged.connect(self.display_image)
         self.table.installEventFilter(self)
+        self.table_last_event_timestamp = None
 
         self.file_path_label = QLabel(self)
         self.file_path_label.setText("Selected File Path: ")
@@ -312,7 +313,7 @@ class RaskladGeotag(QMainWindow):
         self.add_marker_button.clicked.connect(self.add_marker)
         layout_vertical_right.addWidget(self.add_marker_button)
         self.map_fav_widget = QListWidget()
-
+        self.map_fav_widget.setFixedHeight(150)
         layout_vertical_right.addWidget(self.map_fav_widget)
 
         self.toggle_button = QPushButton("Hide files with coordinates", self)
@@ -336,9 +337,18 @@ class RaskladGeotag(QMainWindow):
         for el in sorted_locationFavs:
             map_fav_widget.addItem(f"{el['key']} {el['name']}")
 
+        if len(self.locationFavs) < 1:
+            return
+        item_height = self.map_fav_widget.sizeHintForRow(0)
+
+        # Set the fixed height of the QListWidget to match the height of 6 items
+        self.map_fav_widget.setFixedHeight(
+            item_height * 6 + 2 * self.map_fav_widget.frameWidth()
+        )
+
     def create_main_menu(self):
         menubar = self.menuBar()
-        file_menu = menubar.addMenu("File")
+        file_menu = menubar.addMenu("Settings")
 
         edit_favorites_action = QAction("Edit Favorites", self)
         edit_favorites_action.triggered.connect(self.open_edit_favorites_dialog)
@@ -379,22 +389,35 @@ class RaskladGeotag(QMainWindow):
         return super().eventFilter(source, event)
 
     def keyPressEvent(self, event: QKeyEvent):
+        if event.key() in (Qt.Key.Key_PageDown, Qt.Key.Key_Down):
+            """somehow the event triggered twice,
+            do only if event with this timestamp
+            not performed yet
+            """
 
+            if event.timestamp() != self.table_last_event_timestamp:
+                current_row = self.table.currentRow()
+                next_row = current_row + 1
+                if next_row < self.table.rowCount():
+                    self.table.selectRow(next_row)
+                    self.table.setCurrentCell(next_row, 0)
+                    self.table_last_event_timestamp = event.timestamp()
         key_pressed = event.text()
         for fav in self.locationFavs:
             if fav["key"].upper() == key_pressed.upper():
+                event.accept()
                 self.statusBar().showMessage(f'You pressed the key for {fav["name"]}')
                 # wkt_point = "POINT(37.620393 55.734036)"
                 wkt_point = fav.get("wkt_geom")
                 if not wkt_point:
-                    return
+                    continue
                 retrieved_point = shapely.wkt.loads(wkt_point)
                 retrieved_latitude = retrieved_point.y
                 retrieved_longitude = retrieved_point.x
                 zoom = 16
                 js_code = f"move_to_favorite_place([{retrieved_latitude}, {retrieved_longitude}],{zoom});"
                 self.map_widget.page().runJavaScript(js_code)
-                return
+                continue
         super().keyPressEvent(event)
 
     def add_marker(self, lat=None, lon=None):
