@@ -388,20 +388,23 @@ class RaskladGeotag(QMainWindow):
             return True
         return super().eventFilter(source, event)
 
+    def select_next_file(self, event):
+        if event.timestamp() != self.table_last_event_timestamp:
+            current_row = self.table.currentRow()
+            next_row = current_row + 1
+            if next_row < self.table.rowCount():
+                self.table.selectRow(next_row)
+                self.table.setCurrentCell(next_row, 0)
+                self.table_last_event_timestamp = event.timestamp()
+
     def keyPressEvent(self, event: QKeyEvent):
-        if event.key() in (Qt.Key.Key_PageDown, Qt.Key.Key_Down):
+        if event.key() in (Qt.Key.Key_PageDown, Qt.Key.Key_Down, Qt.Key.Key_Space):
             """somehow the event triggered twice,
             do only if event with this timestamp
             not performed yet
             """
+            self.select_next_file(event)
 
-            if event.timestamp() != self.table_last_event_timestamp:
-                current_row = self.table.currentRow()
-                next_row = current_row + 1
-                if next_row < self.table.rowCount():
-                    self.table.selectRow(next_row)
-                    self.table.setCurrentCell(next_row, 0)
-                    self.table_last_event_timestamp = event.timestamp()
         key_pressed = event.text()
         for fav in self.locationFavs:
             if fav["key"].upper() == key_pressed.upper():
@@ -452,7 +455,9 @@ class RaskladGeotag(QMainWindow):
                             self.table.setItem(
                                 row, 3, QTableWidgetItem(f"{lon} modified")
                             )
-
+                    self.statusBar().showMessage(
+                        f"Coordinates: {lat} {lon} for file {f['file_name']} updated. Press Pagedown, Down arrow, or Space click to select next file"
+                    )
                     break
 
     def save2exif(self):
@@ -488,9 +493,32 @@ class RaskladGeotag(QMainWindow):
                     img.gps_latitude_ref = lat_deg[3]
                     img.gps_longitude = lon_deg[:3]
                     img.gps_longitude_ref = lon_deg[3]
-                    with open(f["file_path"], "wb") as new_image_file:
-                        new_image_file.write(img.get_file())
-                    os.utime(f["file_path"], (creation_time, mod_time))
+                    try:
+                        with open(f["file_path"], "wb") as new_image_file:
+                            new_image_file.write(img.get_file())
+                    except:
+                        msg_box = QMessageBox()
+                        msg_box.setIcon(QMessageBox.Icon.Warning)
+                        msg_box.setText("Failed to save EXIF data.")
+                        msg_box.setInformativeText(f"File: {f['file_name']}")
+                        msg_box.setStandardButtons(
+                            QMessageBox.StandardButton.Retry
+                            | QMessageBox.StandardButton.Ignore
+                            | QMessageBox.StandardButton.Cancel
+                        )
+                        msg_box.setDefaultButton(QMessageBox.StandardButton.Retry)
+                        ret = msg_box.exec()
+
+                        if ret == QMessageBox.StandardButton.Retry:
+                            continue
+                        elif ret == QMessageBox.StandardButton.Ignore:
+                            pass
+                        elif ret == QMessageBox.StandardButton.Cancel:
+                            break
+                        continue
+                    else:
+                        # no exception
+                        os.utime(f["file_path"], (creation_time, mod_time))
 
                     self.coordinates_label.setText(
                         f"Coordinates: {lat} {lon} for file {f['file_name']} saved to EXIF"
