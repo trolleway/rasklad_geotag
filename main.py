@@ -487,10 +487,14 @@ class RaskladGeotag(QMainWindow):
 
                     with open(f["file_path"], "rb") as image_file:
                         img = exif.Image(image_file)
-                    img.gps_latitude = lat_deg[:3]
-                    img.gps_latitude_ref = lat_deg[3]
-                    img.gps_longitude = lon_deg[:3]
-                    img.gps_longitude_ref = lon_deg[3]
+                    try:
+                        img.gps_latitude = lat_deg[:3]
+                        img.gps_latitude_ref = lat_deg[3]
+                        img.gps_longitude = lon_deg[:3]
+                        img.gps_longitude_ref = lon_deg[3]
+                    except:
+                        self.coordinates_label.setText(f"EXIF library error")
+                        continue
                     try:
                         with open(f["file_path"], "wb") as new_image_file:
                             new_image_file.write(img.get_file())
