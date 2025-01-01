@@ -19,9 +19,19 @@ from PyQt6.QtWidgets import (
     QFormLayout,
     QMessageBox,
     QInputDialog,
+    QProgressBar,
 )
-from PyQt6.QtCore import Qt, QDir, QObject, pyqtSlot, pyqtSignal, QEvent, QSettings
-from PyQt6.QtGui import QPixmap, QKeyEvent, QAction
+from PyQt6.QtCore import (
+    Qt,
+    QDir,
+    QObject,
+    pyqtSlot,
+    pyqtSignal,
+    QEvent,
+    QSettings,
+    QRectF,
+)
+from PyQt6.QtGui import QPixmap, QKeyEvent, QAction, QPainter, QPen, QBrush
 from PyQt6.QtWebEngineWidgets import QWebEngineView
 from PyQt6.QtWebEngineCore import QWebEnginePage
 from PyQt6.QtWebChannel import QWebChannel
@@ -41,6 +51,29 @@ class JavaScriptHandler(QObject):
     @pyqtSlot(str, str)
     def coordinatesUpdatedSlot(self, lat, lng):
         self.coordinatesUpdated.emit(lat, lng)
+
+
+class CustomProgressBar(QProgressBar):
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        rect = QRectF(
+            10, 10, self.width() - 20, self.height() - 20
+        )  # Define the rectangle for the progress bar
+
+        # Draw background rectangle
+        painter.setBrush(QBrush(Qt.GlobalColor.white))
+        painter.drawRect(rect)
+
+        # Draw progress rectangle
+        progress_width = (self.width() - 20) * (self.value() / 100.0)
+        progress_rect = QRectF(10, 10, progress_width, self.height() - 20)
+        painter.setBrush(QBrush(Qt.GlobalColor.gray))
+        painter.drawRect(progress_rect)
+
+        # Draw text
+        painter.setPen(Qt.GlobalColor.black)
+        painter.setFont(self.font())
+        painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, f"{self.value()}%")
 
 
 class MapWidget(QWebEngineView):
@@ -315,6 +348,9 @@ class RaskladGeotag(QMainWindow):
         self.map_fav_widget = QListWidget()
         self.map_fav_widget.setFixedHeight(150)
         layout_vertical_right.addWidget(self.map_fav_widget)
+        self.coordinate_set_progressBar = CustomProgressBar()
+        self.coordinate_set_progressBar.setValue(0)  # Set the percentage value here
+        layout_vertical_right.addWidget(self.coordinate_set_progressBar)
 
         self.toggle_button = QPushButton("Hide files with coordinates", self)
         self.toggle_button.clicked.connect(self.toggle_filter)
@@ -528,6 +564,11 @@ class RaskladGeotag(QMainWindow):
                         f"Coordinates not found for file {f['file_name']}"
                     )
 
+        self.statusBar().showMessage(f"Coordinates saved to EXIF")
+        self.updateProgressBar()
+        self.display_files(self.folder_path, supress_statusbar=True)
+
+    def updateProgressBar(self):
         has_coords1 = len([f for f in self.mainfiles if f.get("lat")])
         has_coords2 = len(
             [
@@ -538,10 +579,8 @@ class RaskladGeotag(QMainWindow):
         )
         has_coords = has_coords1 + has_coords2
         total = len(self.mainfiles)
-        self.statusBar().showMessage(
-            f"Coordinates saved to EXIF. {has_coords} of {total} files have coordinates"
-        )
-        self.display_files(self.folder_path, supress_statusbar=True)
+
+        self.coordinate_set_progressBar.setValue(round(100 / (total / has_coords)))
 
     def open_folder_dialog(self):
         self.folder_path = QFileDialog.getExistingDirectory(self, "Select Folder")
@@ -636,6 +675,7 @@ class RaskladGeotag(QMainWindow):
         self.table.viewport().update()  # Explicitly trigger a redraw of the table
         if not supress_statusbar:
             self.statusBar().showMessage(f"Select image in table to edit coordinates")
+        self.updateProgressBar()
 
     def display_image(self):
         selected_items = self.table.selectedItems()
