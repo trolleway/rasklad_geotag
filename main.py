@@ -31,7 +31,7 @@ from PyQt6.QtCore import (
     QSettings,
     QRectF,
 )
-from PyQt6.QtGui import QPixmap, QKeyEvent, QAction, QPainter, QPen, QBrush
+from PyQt6.QtGui import QPixmap, QKeyEvent, QAction, QPainter, QPen, QBrush, QColor
 from PyQt6.QtWebEngineWidgets import QWebEngineView
 from PyQt6.QtWebEngineCore import QWebEnginePage
 from PyQt6.QtWebChannel import QWebChannel
@@ -57,17 +57,25 @@ class CustomProgressBar(QProgressBar):
     def paintEvent(self, event):
         painter = QPainter(self)
         rect = QRectF(
-            10, 10, self.width() - 20, self.height() - 20
+            10, 8, self.width() - 20, self.height() - 15
         )  # Define the rectangle for the progress bar
 
         # Draw background rectangle
-        painter.setBrush(QBrush(Qt.GlobalColor.white))
+        painter.setBrush(QBrush(QColor(254, 232, 200)))
         painter.drawRect(rect)
+
+        # Draw scale 80%
+        progress_width = (self.width() - 20) * (80 / 100.0)
+        progress_rect = QRectF(
+            progress_width, self.height() - 8, self.width() - progress_width - 10, 4
+        )
+        painter.setBrush(QBrush(QColor(253, 187, 132)))
+        painter.drawRect(progress_rect)
 
         # Draw progress rectangle
         progress_width = (self.width() - 20) * (self.value() / 100.0)
-        progress_rect = QRectF(10, 10, progress_width, self.height() - 20)
-        painter.setBrush(QBrush(Qt.GlobalColor.gray))
+        progress_rect = QRectF(10, 8, progress_width, self.height() - 15)
+        painter.setBrush(QBrush(QColor(166, 216, 84)))
         painter.drawRect(progress_rect)
 
         # Draw text
@@ -579,8 +587,10 @@ class RaskladGeotag(QMainWindow):
         )
         has_coords = has_coords1 + has_coords2
         total = len(self.mainfiles)
-
-        self.coordinate_set_progressBar.setValue(round(100 / (total / has_coords)))
+        if total == 0 or has_coords == 0:
+            self.coordinate_set_progressBar.setValue(0)
+        else:
+            self.coordinate_set_progressBar.setValue(round(100 / (total / has_coords)))
 
     def open_folder_dialog(self):
         self.folder_path = QFileDialog.getExistingDirectory(self, "Select Folder")
