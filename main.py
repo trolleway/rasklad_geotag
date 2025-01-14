@@ -328,15 +328,16 @@ class RaskladGeotag(QMainWindow):
         self.table.setColumnWidth(1, 180)
         self.table.itemSelectionChanged.connect(self.display_image)
         self.table.installEventFilter(self)
+        self.table.setMinimumHeight(300)
         self.table_last_event_timestamp = None
 
         self.file_path_label = QLabel(self)
         self.file_path_label.setText("Selected File Path: ")
 
-        layout.addWidget(self.label)
         layout.addWidget(self.select_button)
         layout.addWidget(self.table)
         layout.addWidget(self.file_path_label)
+        layout.addWidget(self.label)
 
         layout_horizontal.addLayout(layout)
 
