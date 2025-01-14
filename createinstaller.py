@@ -30,6 +30,8 @@ subprocess.run(
         sys.executable,
         "-m",
         "PyInstaller",
+        "--name",
+        "rasklad_geotag",
         "--onefile",
         "--noconsole",
         "--add-data",
