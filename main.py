@@ -20,6 +20,7 @@ from PyQt6.QtWidgets import (
     QMessageBox,
     QInputDialog,
     QProgressBar,
+    QStyle,
 )
 from PyQt6.QtCore import (
     Qt,
@@ -313,9 +314,18 @@ class RaskladGeotag(QMainWindow):
         )
 
         self.select_button = QPushButton("Select Folder", self)
+
+        self.select_button.setIcon(
+            self.style().standardIcon(getattr(QStyle.StandardPixmap, "SP_DirIcon"))
+        )
         self.select_button.clicked.connect(self.open_folder_dialog)
 
         self.save_button = QPushButton("Save coordinates to EXIF", self)
+        self.save_button.setIcon(
+            self.style().standardIcon(
+                getattr(QStyle.StandardPixmap, "SP_DialogSaveButton")
+            )
+        )
         self.save_button.clicked.connect(self.save2exif)
 
         self.table = QTableWidget(self)
@@ -493,12 +503,8 @@ class RaskladGeotag(QMainWindow):
                 for row in range(row_count):
                     item = self.table.item(row, 0)  # Get the item in column 0
                     if item and item.text() == f["file_name"]:
-                        self.table.setItem(
-                            row, 2, QTableWidgetItem(f"{lat} modified")
-                        )
-                        self.table.setItem(
-                            row, 3, QTableWidgetItem(f"{lon} modified")
-                        )
+                        self.table.setItem(row, 2, QTableWidgetItem(f"{lat} modified"))
+                        self.table.setItem(row, 3, QTableWidgetItem(f"{lon} modified"))
                     self.statusBar().showMessage(
                         f"Coordinates: {lat} {lon} for file {f['file_name']} updated. Press Space, Pagedown, or ⇩ to select next file"
                     )
