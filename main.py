@@ -499,7 +499,7 @@ class RaskladGeotag(QMainWindow):
                             row, 3, QTableWidgetItem(f"{lon} modified")
                         )
                     self.statusBar().showMessage(
-                        f"Coordinates: {lat} {lon} for file {f['file_name']} updated. Press Pagedown, Down arrow, or Space click to select next file"
+                        f"Coordinates: {lat} {lon} for file {f['file_name']} updated. Press Space, Pagedown, or ⇩ to select next file"
                     )
 
     def save2exif(self):
