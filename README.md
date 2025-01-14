@@ -18,6 +18,10 @@ Rasklad Geotag is a photo geotagging application built with PyQt6. It allows use
 - exif
 
 ## Installation
+### Windows
+Download executable from GitHub [releases page](https://github.com/trolleway/rasklad_geotag/releases/)
+
+### From source
 1. Clone the repository:
    ```sh
    git clone https://github.com/trolleway/rasklad_geotag.git

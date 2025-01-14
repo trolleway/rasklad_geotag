@@ -480,30 +480,28 @@ class RaskladGeotag(QMainWindow):
     def update_coordinate_in_mainfiles(self, lat, lon):
         self.mapMarkerLat = lat
         self.mapMarkerLon = lon
-        if self.mainfile_selected:
-            self.coordinates_label.setText(
-                f"Coordinates: {lat} {lon} for file {self.mainfile_selected}"
-            )
-            for i, f in enumerate(self.mainfiles):
-                if f["file_path"] == self.mainfile_selected:
-                    f["modified"]["lat"] = lat
-                    f["modified"]["lon"] = lon
-                    f["is_modified"] = True
+        selected = set([])
+        for it in self.table.selectedItems():
+            selected.add(it.text())
+        for i, f in enumerate(self.mainfiles):
+            if f["file_name"] in selected:
+                f["modified"]["lat"] = lat
+                f["modified"]["lon"] = lon
+                f["is_modified"] = True
 
-                    row_count = self.table.rowCount()
-                    for row in range(row_count):
-                        item = self.table.item(row, 0)  # Get the item in column 0
-                        if item and item.text() == f["file_name"]:
-                            self.table.setItem(
-                                row, 2, QTableWidgetItem(f"{lat} modified")
-                            )
-                            self.table.setItem(
-                                row, 3, QTableWidgetItem(f"{lon} modified")
-                            )
+                row_count = self.table.rowCount()
+                for row in range(row_count):
+                    item = self.table.item(row, 0)  # Get the item in column 0
+                    if item and item.text() == f["file_name"]:
+                        self.table.setItem(
+                            row, 2, QTableWidgetItem(f"{lat} modified")
+                        )
+                        self.table.setItem(
+                            row, 3, QTableWidgetItem(f"{lon} modified")
+                        )
                     self.statusBar().showMessage(
-                        f"Coordinates: {lat} {lon} for file {f['file_name']} updated. Press Pagedown, Down arrow, or Space click to select next file"
+                        f"Coordinates: {lat} {lon} for file {f['file_name']} updated. Press Space, Pagedown, or ⇩ to select next file"
                     )
-                    break
 
     def save2exif(self):
         def to_deg(value, loc):
@@ -534,10 +532,14 @@ class RaskladGeotag(QMainWindow):
 
                     with open(f["file_path"], "rb") as image_file:
                         img = exif.Image(image_file)
-                    img.gps_latitude = lat_deg[:3]
-                    img.gps_latitude_ref = lat_deg[3]
-                    img.gps_longitude = lon_deg[:3]
-                    img.gps_longitude_ref = lon_deg[3]
+                    try:
+                        img.gps_latitude = lat_deg[:3]
+                        img.gps_latitude_ref = lat_deg[3]
+                        img.gps_longitude = lon_deg[:3]
+                        img.gps_longitude_ref = lon_deg[3]
+                    except:
+                        self.coordinates_label.setText(f"EXIF library error")
+                        continue
                     try:
                         with open(f["file_path"], "wb") as new_image_file:
                             new_image_file.write(img.get_file())
