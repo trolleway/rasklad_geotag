@@ -329,11 +329,9 @@ class RaskladGeotag(QMainWindow):
         self.save_button.clicked.connect(self.save2exif)
 
         self.table = QTableWidget(self)
-        self.table.setColumnCount(5)
+        self.table.setColumnCount(4)
 
-        self.table.setHorizontalHeaderLabels(
-            ["Filename", "Create Date", "lat", "lon", "State"]
-        )
+        self.table.setHorizontalHeaderLabels(["Filename", "Create Date", "lat", "lon"])
         self.table.setColumnWidth(0, 200)
         self.table.setColumnWidth(1, 180)
         self.table.itemSelectionChanged.connect(self.display_image)
@@ -602,7 +600,7 @@ class RaskladGeotag(QMainWindow):
             self.coordinate_set_progressBar.setValue(round(100 / (total / has_coords)))
 
     def open_folder_dialog(self):
-        self.folder_path = QFileDialog.getExistingDirectory(self, "Select Folder")
+        self.folder_path = QFileDialog.getExistingDirectory(self, "Open Folder")
         if self.folder_path:
             self.display_files(self.folder_path)
 
