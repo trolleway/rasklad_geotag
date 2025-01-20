@@ -1,4 +1,0 @@
-PyQt6 
-PyQT6-WebEngine
-exif
-shapely
