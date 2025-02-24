@@ -21,6 +21,9 @@ from PyQt6.QtWidgets import (
     QInputDialog,
     QProgressBar,
     QStyle,
+    QFrame,
+    QTabWidget,
+    QGroupBox,
 )
 from PyQt6.QtCore import (
     Qt,
@@ -295,6 +298,11 @@ class RaskladGeotag(QMainWindow):
         self.mapMarkerLat = None
         self.mapMarkerLon = None
 
+        self.mode_enter_coordinates = 1
+        self.mode_enter_destinations = 2
+
+        self.mode_interface = self.mode_enter_coordinates
+
         self.initUI()
 
     def initUI(self):
@@ -329,9 +337,11 @@ class RaskladGeotag(QMainWindow):
         self.save_button.clicked.connect(self.save2exif)
 
         self.table = QTableWidget(self)
-        self.table.setColumnCount(4)
+        self.table.setColumnCount(6)
 
-        self.table.setHorizontalHeaderLabels(["Filename", "Create Date", "lat", "lon"])
+        self.table.setHorizontalHeaderLabels(
+            ["Filename", "Create Date", "lat", "lon", "dest lat", "dest lon"]
+        )
         self.table.setColumnWidth(0, 200)
         self.table.setColumnWidth(1, 180)
         self.table.itemSelectionChanged.connect(self.display_image)
@@ -369,9 +379,48 @@ class RaskladGeotag(QMainWindow):
         self.coordinate_set_progressBar.setValue(0)  # Set the percentage value here
         layout_vertical_right.addWidget(self.coordinate_set_progressBar)
 
+        # tab1
+        tab_enter_coordinates_mode = QWidget()
+        layout_enter_coordinates_mode = QVBoxLayout()
         self.toggle_button = QPushButton("Hide files with coordinates", self)
         self.toggle_button.clicked.connect(self.toggle_filter)
-        layout.addWidget(self.toggle_button)
+        layout_enter_coordinates_mode.addWidget(self.toggle_button)
+        tab_enter_coordinates_mode.setLayout(layout_enter_coordinates_mode)
+
+        # tab2
+        tab_enter_dest_coordinates_mode = QWidget()
+        layout_enter_dest_coordinates_mode = QVBoxLayout()
+        self.dest_coordinates_info = QLabel("Entering destination coordinates")
+        layout_enter_dest_coordinates_mode.addWidget(self.dest_coordinates_info)
+        tab_enter_dest_coordinates_mode.setLayout(layout_enter_dest_coordinates_mode)
+
+        # tab group
+        self.label_mode = QLabel("Mode:")
+        layout.addWidget(self.label_mode)
+        self.tab_mode = QTabWidget()
+        self.tab_mode.addTab(tab_enter_coordinates_mode, "Enter image coordinates")
+        self.tab_mode.addTab(tab_enter_dest_coordinates_mode, "Enter dest coordinates")
+        self.tab_mode.setCurrentIndex(0)
+        self.tab_mode.currentChanged.connect(self.on_tab_change)
+
+        self.tab_mode.setStyleSheet(
+            """
+            QTabWidget::pane { /* The tab widget frame */
+                border: 2px solid black;
+                position: absolute;
+                top: -0.5em;
+            }
+            QTabBar::tab {
+                background: lightgray;
+                border: 1px solid black;
+                padding: 5px;
+            }
+            QTabBar::tab:selected {
+                background: white;
+            }
+        """
+        )
+        layout.addWidget(self.tab_mode)
 
         layout.addWidget(self.coordinates_label)
         layout.addWidget(self.save_button)
@@ -381,6 +430,12 @@ class RaskladGeotag(QMainWindow):
         self.statusBar().showMessage("Select a directory with images to start")
         self.create_main_menu()
         self.display_sorted_location_favorites(self.map_fav_widget)
+
+    def on_tab_change(self, index):
+        if index == 0:
+            self.switch_mode_enter_coordinates()
+        elif index == 1:
+            self.switch_mode_enter_destinations()
 
     def display_sorted_location_favorites(self, map_fav_widget):
         sorted_locationFavs = sorted(
@@ -435,6 +490,18 @@ class RaskladGeotag(QMainWindow):
             print("Filter disabled")
             self.statusBar().showMessage("Showing all files")
 
+    def switch_mode_enter_destinations(self):
+        self.mode_interface = self.mode_enter_destinations
+        self.filter_has_coords_enabled = True
+        self.toggle_filter()
+        self.statusBar().showMessage(
+            "Switched to destination coordinates entering mode. Set coordinates of image destination"
+        )
+
+    def switch_mode_enter_coordinates(self):
+        self.mode_interface = self.mode_enter_coordinates
+        self.statusBar().showMessage("Switched to image coordinates edit mode.")
+
     def eventFilter(self, source, event):
         if event.type() == QEvent.Type.KeyPress and source is self.table:
             self.keyPressEvent(event)
@@ -486,6 +553,18 @@ class RaskladGeotag(QMainWindow):
 
     @pyqtSlot(str, str)
     def update_coordinate_in_mainfiles(self, lat, lon):
+
+        if self.mode_interface == self.mode_enter_coordinates:
+            attr_lat = "lat"
+            attr_lon = "lon"
+            table_column_lat = 2
+            table_column_lon = 3
+        elif self.mode_interface == self.mode_enter_destinations:
+            attr_lat = "dest_lat"
+            attr_lon = "dest_lon"
+            table_column_lat = 4
+            table_column_lon = 5
+
         self.mapMarkerLat = lat
         self.mapMarkerLon = lon
         selected = set([])
@@ -493,16 +572,20 @@ class RaskladGeotag(QMainWindow):
             selected.add(it.text())
         for i, f in enumerate(self.mainfiles):
             if f["file_name"] in selected:
-                f["modified"]["lat"] = lat
-                f["modified"]["lon"] = lon
+                f["modified"][attr_lat] = lat
+                f["modified"][attr_lon] = lon
                 f["is_modified"] = True
 
                 row_count = self.table.rowCount()
                 for row in range(row_count):
                     item = self.table.item(row, 0)  # Get the item in column 0
                     if item and item.text() == f["file_name"]:
-                        self.table.setItem(row, 2, QTableWidgetItem(f"{lat} modified"))
-                        self.table.setItem(row, 3, QTableWidgetItem(f"{lon} modified"))
+                        self.table.setItem(
+                            row, table_column_lat, QTableWidgetItem(f"Changed to {lat}")
+                        )
+                        self.table.setItem(
+                            row, table_column_lon, QTableWidgetItem(f"Changed to {lon}")
+                        )
                     self.statusBar().showMessage(
                         f"Coordinates: {lat} {lon} for file {f['file_name']} updated. Press Space, Pagedown, or ⇩ to select next file"
                     )
@@ -524,16 +607,22 @@ class RaskladGeotag(QMainWindow):
             return deg, min, sec, loc_value
 
         for i, f in enumerate(self.mainfiles):
+            dest_lat = None
+            dest_lon = None
+            lat = None
+            lon = None
             if f.get("is_modified"):
-                assert f["modified"]["lat"] and f["modified"]["lon"]
-                lat = f["modified"]["lat"]
-                lon = f["modified"]["lon"]
+                lat = f["modified"].get("lat")
+                lon = f["modified"].get("lon")
+                dest_lat = f["modified"].get("dest_lat")
+                dest_lon = f["modified"].get("dest_lon")
+
                 if lat and lon:
                     lat_deg = to_deg(lat, ("S", "N"))
                     lon_deg = to_deg(lon, ("W", "E"))
                     creation_time = os.path.getctime(f["file_path"])
                     mod_time = os.path.getmtime(f["file_path"])
-
+                    """
                     with open(f["file_path"], "rb") as image_file:
                         img = exif.Image(image_file)
                     try:
@@ -544,6 +633,33 @@ class RaskladGeotag(QMainWindow):
                     except:
                         self.coordinates_label.setText(f"EXIF library error")
                         continue
+                    """
+
+                if dest_lat and dest_lon:
+                    dest_lat_deg = to_deg(dest_lat, ("S", "N"))
+                    dest_lon_deg = to_deg(dest_lon, ("W", "E"))
+                    creation_time = os.path.getctime(f["file_path"])
+                    mod_time = os.path.getmtime(f["file_path"])
+
+                # append to object
+                with open(f["file_path"], "rb") as image_file:
+                    img = exif.Image(image_file)
+                try:
+                    if lat and lon:
+                        img.gps_latitude = lat_deg[:3]
+                        img.gps_latitude_ref = lat_deg[3]
+                        img.gps_longitude = lon_deg[:3]
+                        img.gps_longitude_ref = lon_deg[3]
+                    if dest_lat and dest_lon:
+                        img.gps_dest_latitude = dest_lat_deg[:3]
+                        img.gps_dest_latitude_ref = dest_lat_deg[3]
+                        img.gps_dest_longitude = dest_lon_deg[:3]
+                        img.gps_dest_longitude_ref = dest_lon_deg[3]
+                except:
+                    self.coordinates_label.setText(f"EXIF library error")
+                    continue
+                # save
+                if (lat and lon) or (dest_lat and dest_lon):
                     try:
                         with open(f["file_path"], "wb") as new_image_file:
                             new_image_file.write(img.get_file())
@@ -623,6 +739,8 @@ class RaskladGeotag(QMainWindow):
                     f["model"] = img.get("model")
                     f["datetime_original"] = img.get("datetime_original")
 
+                    # load coord
+
                     if (
                         img.has_exif
                         and img.get("gps_latitude")
@@ -645,12 +763,41 @@ class RaskladGeotag(QMainWindow):
 
                         f["lat"] = lat
                         f["lon"] = lon
+                        del lat
+                        del lon
+                        # dest
+                        if (
+                            img.has_exif
+                            and img.get("gps_dest_latitude")
+                            and img.get("gps_dest_longitude")
+                        ):
+                            lat = (
+                                img.gps_dest_latitude[0]
+                                + img.gps_dest_latitude[1] / 60
+                                + img.gps_dest_latitude[2] / 3600
+                            )
+                            lon = (
+                                img.gps_dest_longitude[0]
+                                + img.gps_dest_longitude[1] / 60
+                                + img.gps_dest_longitude[2] / 3600
+                            )
+                            if img.gps_dest_latitude_ref == "S":
+                                lat = -lat
+                            if img.gps_dest_longitude_ref == "W":
+                                lon = -lon
+
+                            f["dest_lat"] = lat
+                            f["dest_lon"] = lon
+
             except:
                 print("exif read error " + f["file_path"])
 
             self.mainfiles.append(f)
 
     def display_files(self, folder_path, supress_statusbar=False):
+        """
+        append files to file list
+        """
         self.read_files_data(folder_path)
         self.folder_path = folder_path  # Save the selected folder path
 
@@ -673,7 +820,8 @@ class RaskladGeotag(QMainWindow):
             item_datetime = QTableWidgetItem(f.get("datetime_original"))
             item_lat = QTableWidgetItem(str(f.get("lat", "")))
             item_lon = QTableWidgetItem(str(f.get("lon", "")))
-
+            item_destlat = QTableWidgetItem(str(f.get("dest_lat", "")))
+            item_destlon = QTableWidgetItem(str(f.get("dest_lon", "")))
             # Disable editing for each item
             item_file_name.setFlags(
                 item_file_name.flags() & ~Qt.ItemFlag.ItemIsEditable
@@ -681,11 +829,15 @@ class RaskladGeotag(QMainWindow):
             item_datetime.setFlags(item_datetime.flags() & ~Qt.ItemFlag.ItemIsEditable)
             item_lat.setFlags(item_lat.flags() & ~Qt.ItemFlag.ItemIsEditable)
             item_lon.setFlags(item_lon.flags() & ~Qt.ItemFlag.ItemIsEditable)
+            item_lat.setFlags(item_destlat.flags() & ~Qt.ItemFlag.ItemIsEditable)
+            item_lon.setFlags(item_destlon.flags() & ~Qt.ItemFlag.ItemIsEditable)
 
             self.table.setItem(i, 0, item_file_name)
             self.table.setItem(i, 1, item_datetime)
             self.table.setItem(i, 2, item_lat)
             self.table.setItem(i, 3, item_lon)
+            self.table.setItem(i, 4, item_destlat)
+            self.table.setItem(i, 5, item_destlon)
 
         self.table.sortByColumn(1, Qt.SortOrder.AscendingOrder)
         self.table.setSortingEnabled(True)  # Enable sorting after updating
@@ -711,12 +863,21 @@ class RaskladGeotag(QMainWindow):
             )
             self.label.setScaledContents(True)
 
+            if self.mode_interface == self.mode_enter_coordinates:
+                attr_lat = "lat"
+                attr_lon = "lon"
+            elif self.mode_interface == self.mode_enter_destinations:
+                attr_lat = "dest_lat"
+                attr_lon = "dest_lon"
+
             for i, f in enumerate(self.mainfiles):
                 if f["file_path"] == full_path:
-                    if f["modified"].get("lat") and f["modified"].get("lon"):
-                        self.add_marker(f["modified"]["lat"], f["modified"]["lon"])
-                    elif f.get("lat") and f.get("lon"):
-                        self.add_marker(f["lat"], f["lon"])
+                    if f["modified"].get(attr_lat) and f["modified"].get(attr_lon):
+                        self.add_marker(
+                            f["modified"][attr_lat], f["modified"][attr_lon]
+                        )
+                    elif f.get(attr_lat) and f.get(attr_lon):
+                        self.add_marker(f[attr_lat], f[attr_lon])
                     else:
                         self.add_marker()
                     self.statusBar().showMessage(
