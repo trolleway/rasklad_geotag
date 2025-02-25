@@ -432,6 +432,8 @@ class RaskladGeotag(QMainWindow):
         self.display_sorted_location_favorites(self.map_fav_widget)
 
     def on_tab_change(self, index):
+        js_code = f"removeMarkers();"
+        self.map_widget.page().runJavaScript(js_code)
         if index == 0:
             self.switch_mode_enter_coordinates()
         elif index == 1:
@@ -492,13 +494,17 @@ class RaskladGeotag(QMainWindow):
 
     def switch_mode_enter_destinations(self):
         self.mode_interface = self.mode_enter_destinations
-        self.filter_has_coords_enabled = True
-        self.toggle_filter()
+        self.label.setPixmap(QPixmap())  # unload image
+        # switch off filter
+        self.filter_has_coords_enabled = False
+        self.display_files(self.folder_path)
+
         self.statusBar().showMessage(
             "Switched to destination coordinates entering mode. Set coordinates of image destination"
         )
 
     def switch_mode_enter_coordinates(self):
+        self.label.setPixmap(QPixmap())  # unload image
         self.mode_interface = self.mode_enter_coordinates
         self.statusBar().showMessage("Switched to image coordinates edit mode.")
 
@@ -544,6 +550,8 @@ class RaskladGeotag(QMainWindow):
         super().keyPressEvent(event)
 
     def add_marker(self, lat=None, lon=None):
+        if self.table.currentRow() is None:
+            return
         if not lat or not lon:
             js_code = "addMarker(map.getCenter());"
         else:
@@ -586,9 +594,12 @@ class RaskladGeotag(QMainWindow):
                         self.table.setItem(
                             row, table_column_lon, QTableWidgetItem(f"Changed to {lon}")
                         )
-                    self.statusBar().showMessage(
-                        f"Coordinates: {lat} {lon} for file {f['file_name']} updated. Press Space, Pagedown, or ⇩ to select next file"
-                    )
+
+                        self.statusBar().showMessage(
+                            f"Coordinates: {lat} {lon} for file {f['file_name']} updated. Press Space, Pagedown, or ⇩ to select next file"
+                        )
+                        break
+                # no break here, may be multiple files selected
 
     def save2exif(self):
         def to_deg(value, loc):
@@ -655,8 +666,8 @@ class RaskladGeotag(QMainWindow):
                         img.gps_dest_latitude_ref = dest_lat_deg[3]
                         img.gps_dest_longitude = dest_lon_deg[:3]
                         img.gps_dest_longitude_ref = dest_lon_deg[3]
-                except:
-                    self.coordinates_label.setText(f"EXIF library error")
+                except Exception as e:
+                    self.coordinates_label.setText(f"EXIF library error " + str(e))
                     continue
                 # save
                 if (lat and lon) or (dest_lat and dest_lon):
@@ -718,9 +729,11 @@ class RaskladGeotag(QMainWindow):
     def open_folder_dialog(self):
         self.folder_path = QFileDialog.getExistingDirectory(self, "Open Folder")
         if self.folder_path:
+            self.mainfiles_init(self.folder_path)
             self.display_files(self.folder_path)
 
-    def read_files_data(self, folder_path):
+    def mainfiles_init(self, folder_path):
+        # initialize mainfiles, read exif from disk
         self.mainfiles = []
         print("mainfiles cleared")
         files = os.listdir(folder_path)
@@ -798,13 +811,14 @@ class RaskladGeotag(QMainWindow):
         """
         append files to file list
         """
-        self.read_files_data(folder_path)
+
         self.folder_path = folder_path  # Save the selected folder path
 
         self.table.setSortingEnabled(False)  # Disable sorting while updating
         self.table.setRowCount(0)
 
         files = self.mainfiles
+        # if filter
         if self.filter_has_coords_enabled:
             files = [
                 f
@@ -822,6 +836,10 @@ class RaskladGeotag(QMainWindow):
             item_lon = QTableWidgetItem(str(f.get("lon", "")))
             item_destlat = QTableWidgetItem(str(f.get("dest_lat", "")))
             item_destlon = QTableWidgetItem(str(f.get("dest_lon", "")))
+            if f.get("is_modified") is not None and f.get("modified") is not None:
+                if f["modified"].get("lat"):
+                    item_lat = QTableWidgetItem(f"Pending {f["modified"]['lat']}")
+
             # Disable editing for each item
             item_file_name.setFlags(
                 item_file_name.flags() & ~Qt.ItemFlag.ItemIsEditable
