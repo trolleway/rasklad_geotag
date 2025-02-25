@@ -40,6 +40,7 @@ from PyQt6.QtWebEngineWidgets import QWebEngineView
 from PyQt6.QtWebEngineCore import QWebEnginePage
 from PyQt6.QtWebChannel import QWebChannel
 import exif
+from exiftool import ExifToolHelper  # when python library failed
 import shapely.wkt
 import shapely.geometry
 
@@ -137,21 +138,27 @@ class MapWidget(QWebEngineView):
                         map.removeLayer(marker);
                     }
                 }
-                function addMarker(position) {
+                function addMarker(position, markerclass) {
                    removeMarkers();
                     // Custom  icon
-                    var squareIcon = L.icon({
+                    var destIcon = L.icon({
                         iconUrl: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgdmlld0JveD0iMCAwIDEwMCAxMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHg9IjMiIHk9IjMiIHdpZHRoPSI5NCIgaGVpZ2h0PSI5NCIgc3Ryb2tlPSJibGFjayIgc3Ryb2tlLXdpZHRoPSI2IiBzdHJva2UtbWl0ZXJsaW1pdD0iMi42MTMxMyIvPgo8cGF0aCBkPSJNNTAgMFYxMDAiIHN0cm9rZT0iYmxhY2siIHN0cm9rZS13aWR0aD0iMyIvPgo8cGF0aCBkPSJNMCA1MEMyLjgxNDA3IDUwIDY3LjgzOTIgNTAgMTAwIDUwIiBzdHJva2U9ImJsYWNrIiBzdHJva2Utd2lkdGg9IjMiLz4KPC9zdmc+Cg==', // Base64 encoded SVG
+                        iconSize: [20, 20],
+                        iconAnchor: [10, 10]
+                    });
+                    var imageIcon = L.icon({
+                        iconUrl: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAiIGhlaWdodD0iMjAiIHZpZXdCb3g9IjAgMCAzMCAyMCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjMwIiBoZWlnaHQ9IjIwIiBmaWxsPSIjQjU2RDJEIi8+Cjwvc3ZnPgo=', // Base64 encoded SVG
                         iconSize: [20, 20],
                         iconAnchor: [10, 10]
                     });
 
                     // Create a square marker at the the map
+                    if (markerclass==='dest'){var icon=destIcon};
+                    if (markerclass==='image'){var icon=imageIcon};
                     marker = L.marker(position, {
                     draggable: true,
                     autoPan: true,
-                    icon: squareIcon
-
+                    icon: icon
                     }).addTo(map);
 
                     marker.on('dragend', function(e) {
@@ -175,7 +182,7 @@ class MapWidget(QWebEngineView):
                     }
                     function move_to_favorite_place(position, zoom) {
                         map.setView(position, zoom);
-                        addMarker(position);
+                        addMarker(position,'image');
                     }
                     
             </script>
@@ -549,13 +556,13 @@ class RaskladGeotag(QMainWindow):
                 continue
         super().keyPressEvent(event)
 
-    def add_marker(self, lat=None, lon=None):
+    def add_marker(self, lat=None, lon=None, markerclass="image"):
         if self.table.currentRow() is None:
             return
         if not lat or not lon:
-            js_code = "addMarker(map.getCenter());"
+            js_code = f"addMarker(map.getCenter(),'{markerclass}');"
         else:
-            js_code = f"addMarker([{lat}, {lon}]);"
+            js_code = f"addMarker([{lat}, {lon}],'{markerclass}');"
 
         self.map_widget.page().runJavaScript(js_code)
 
@@ -653,6 +660,7 @@ class RaskladGeotag(QMainWindow):
                     mod_time = os.path.getmtime(f["file_path"])
 
                 # append to object
+                was_saved_by_exiftool = False
                 with open(f["file_path"], "rb") as image_file:
                     img = exif.Image(image_file)
                 try:
@@ -667,6 +675,29 @@ class RaskladGeotag(QMainWindow):
                         img.gps_dest_longitude = dest_lon_deg[:3]
                         img.gps_dest_longitude_ref = dest_lon_deg[3]
                 except Exception as e:
+                    try:
+                        tags = dict()
+                        if lat and lon:
+                            tags["GPSLatitude"] = lat_deg[:3]
+                            tags["GPSLatitudeRef"] = lat_deg[3]
+                            tags["GPSLongitude"] = lon_deg[:3]
+                            tags["GPSLongitudeRef"] = lon_deg[3]
+                        if dest_lat and dest_lon:
+                            tags["GPSDestLatitude"] = dest_lat
+                            tags["GPSDestLatitudeRef"] = dest_lat_deg[3]
+                            tags["GPSDestLongitude"] = dest_lon
+                            tags["GPSDestLongitudeRef"] = dest_lon_deg[3]
+                        with ExifToolHelper() as et:
+                            et.set_tags(
+                                [f["file_path"]],
+                                tags=tags,
+                                params=["-P", "-overwrite_original"],
+                            )
+                        self.coordinates_label.setText(f"Saved using exiftool")
+                        was_saved_by_exiftool = True
+                        continue
+                    except:
+                        pass
                     self.coordinates_label.setText(f"EXIF library error " + str(e))
                     continue
                 # save

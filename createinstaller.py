@@ -24,6 +24,9 @@ for dll in vc_runtime_dlls:
     destination_path = os.path.join(output_dir, dll)
     shutil.copy(source_path, destination_path)
 
+# get exiftool.exe
+# get exiftool_files windows dir
+
 # Run pyinstaller with the necessary options
 subprocess.run(
     [
