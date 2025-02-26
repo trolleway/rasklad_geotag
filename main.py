@@ -913,9 +913,11 @@ class RaskladGeotag(QMainWindow):
             self.label.setScaledContents(True)
 
             if self.mode_interface == self.mode_enter_coordinates:
+                # display only photo coord
                 attr_lat = "lat"
                 attr_lon = "lon"
             elif self.mode_interface == self.mode_enter_destinations:
+                # display both photo coord and dest point
                 attr_lat = "dest_lat"
                 attr_lon = "dest_lon"
 
