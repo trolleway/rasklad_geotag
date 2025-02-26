@@ -597,12 +597,15 @@ class RaskladGeotag(QMainWindow):
                 for row in range(row_count):
                     item = self.table.item(row, 0)  # Get the item in column 0
                     if item and item.text() == f["file_name"]:
-                        self.table.setItem(
-                            row, table_column_lat, QTableWidgetItem(f"Changed to {lat}")
-                        )
-                        self.table.setItem(
-                            row, table_column_lon, QTableWidgetItem(f"Changed to {lon}")
-                        )
+                        new_table_item = QTableWidgetItem(f"{lat}")
+                        new_table_item.setBackground(QColor("#a6d96a"))
+
+                        self.table.setItem(row, table_column_lat, new_table_item)
+                        del new_table_item
+                        new_table_item = QTableWidgetItem(f"{lon}")
+                        new_table_item.setBackground(QColor("#a6d96a"))
+                        self.table.setItem(row, table_column_lon, new_table_item)
+                        del new_table_item
 
                         self.statusBar().showMessage(
                             f"Coordinates: {lat} {lon} for file {f['file_name']} updated. Press Space, Pagedown, or ⇩ to select next file"
