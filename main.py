@@ -513,6 +513,7 @@ class RaskladGeotag(QMainWindow):
     def switch_mode_enter_coordinates(self):
         self.label.setPixmap(QPixmap())  # unload image
         self.mode_interface = self.mode_enter_coordinates
+        self.display_files(self.folder_path)
         self.statusBar().showMessage("Switched to image coordinates edit mode.")
 
     def eventFilter(self, source, event):
@@ -557,6 +558,7 @@ class RaskladGeotag(QMainWindow):
         super().keyPressEvent(event)
 
     def add_marker(self, lat=None, lon=None, markerclass="image"):
+        assert markerclass in ("image", "dest")
         if self.table.currentRow() is None:
             return
         if not lat or not lon:
@@ -870,7 +872,20 @@ class RaskladGeotag(QMainWindow):
             if f.get("is_modified") is not None and f.get("modified") is not None:
                 if f["modified"].get("lat"):
                     item_lat = QTableWidgetItem(f"Pending {f["modified"]['lat']}")
-
+                    item_lat.setBackground(QColor("#a6d96a"))
+                if f["modified"].get("lon"):
+                    item_lon = QTableWidgetItem(f"Pending {f["modified"]['lon']}")
+                    item_lon.setBackground(QColor("#a6d96a"))
+                if f["modified"].get("dest_lat"):
+                    item_destlat = QTableWidgetItem(
+                        f"Pending {f["modified"]['dest_lat']}"
+                    )
+                    item_destlat.setBackground(QColor("#a6d96a"))
+                if f["modified"].get("dest_lon"):
+                    item_destlon = QTableWidgetItem(
+                        f"Pending {f["modified"]['dest_lon']}"
+                    )
+                    item_destlon.setBackground(QColor("#a6d96a"))
             # Disable editing for each item
             item_file_name.setFlags(
                 item_file_name.flags() & ~Qt.ItemFlag.ItemIsEditable
@@ -916,24 +931,47 @@ class RaskladGeotag(QMainWindow):
                 # display only photo coord
                 attr_lat = "lat"
                 attr_lon = "lon"
+                for i, f in enumerate(self.mainfiles):
+                    if f["file_path"] == full_path:
+                        if f["modified"].get(attr_lat) and f["modified"].get(attr_lon):
+                            self.add_marker(
+                                f["modified"][attr_lat],
+                                f["modified"][attr_lon],
+                                markerclass="image",
+                            )
+                        elif f.get(attr_lat) and f.get(attr_lon):
+                            self.add_marker(
+                                f[attr_lat], f[attr_lon], markerclass="image"
+                            )
+                        else:
+                            self.add_marker(lat=None, lon=None, markerclass="image")
+                        self.statusBar().showMessage(
+                            f"Move the marker to set coordinates for {file_name}"
+                        )
+                        break
+
             elif self.mode_interface == self.mode_enter_destinations:
                 # display both photo coord and dest point
                 attr_lat = "dest_lat"
                 attr_lon = "dest_lon"
 
-            for i, f in enumerate(self.mainfiles):
-                if f["file_path"] == full_path:
-                    if f["modified"].get(attr_lat) and f["modified"].get(attr_lon):
-                        self.add_marker(
-                            f["modified"][attr_lat], f["modified"][attr_lon]
+                for i, f in enumerate(self.mainfiles):
+                    if f["file_path"] == full_path:
+                        if f["modified"].get(attr_lat) and f["modified"].get(attr_lon):
+                            self.add_marker(
+                                f["modified"][attr_lat],
+                                f["modified"][attr_lon],
+                                markerclass="dest",
+                            )
+                        elif f.get(attr_lat) and f.get(attr_lon):
+                            self.add_marker(
+                                f[attr_lat], f[attr_lon], markerclass="dest"
+                            )
+                        else:
+                            self.add_marker(lat=None, lon=None, markerclass="dest")
+                        self.statusBar().showMessage(
+                            f"Move the marker to set dest coordinates for {file_name}"
                         )
-                    elif f.get(attr_lat) and f.get(attr_lon):
-                        self.add_marker(f[attr_lat], f[attr_lon])
-                    else:
-                        self.add_marker()
-                    self.statusBar().showMessage(
-                        f"Move the marker to set coordinates for {file_name}"
-                    )
 
     def format_date(self, timestamp):
         from datetime import datetime
