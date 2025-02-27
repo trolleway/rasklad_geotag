@@ -125,7 +125,8 @@ class MapWidget(QWebEngineView):
                     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                 }).addTo(map);
 
-                var marker;
+                
+                var markers = [];
 
                 new QWebChannel(qt.webChannelTransport, function(channel) {
                     window.jsHandler = channel.objects.jsHandler;
@@ -133,13 +134,17 @@ class MapWidget(QWebEngineView):
                 });
 
                 function removeMarkers() {
-                    
-                    if (marker) {
-                        map.removeLayer(marker);
+                    //console.log("current count of markers "+markers.length+", start delete);
+                    for (var i = 0; i < markers.length; i++) {
+                        map.removeLayer(markers[i]);
+                        
                     }
+                    // Clear the markers array
+                    markers = [];
+                    //console.log("after delete markers is  "+markers.length);
                 }
-                function addMarker(position, markerclass) {
-                   removeMarkers();
+                function addMarker(position, markerclass, draggable=true) {
+                   console.log("adding marker draggable = "+draggable);
                     // Custom  icon
                     var destIcon = L.icon({
                         iconUrl: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgdmlld0JveD0iMCAwIDEwMCAxMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHg9IjMiIHk9IjMiIHdpZHRoPSI5NCIgaGVpZ2h0PSI5NCIgc3Ryb2tlPSJibGFjayIgc3Ryb2tlLXdpZHRoPSI2IiBzdHJva2UtbWl0ZXJsaW1pdD0iMi42MTMxMyIvPgo8cGF0aCBkPSJNNTAgMFYxMDAiIHN0cm9rZT0iYmxhY2siIHN0cm9rZS13aWR0aD0iMyIvPgo8cGF0aCBkPSJNMCA1MEMyLjgxNDA3IDUwIDY3LjgzOTIgNTAgMTAwIDUwIiBzdHJva2U9ImJsYWNrIiBzdHJva2Utd2lkdGg9IjMiLz4KPC9zdmc+Cg==', // Base64 encoded SVG
@@ -155,11 +160,12 @@ class MapWidget(QWebEngineView):
                     // Create a square marker at the the map
                     if (markerclass==='dest'){var icon=destIcon};
                     if (markerclass==='image'){var icon=imageIcon};
-                    marker = L.marker(position, {
-                    draggable: true,
+                    var marker = L.marker(position, {
+                    draggable: draggable,
                     autoPan: true,
                     icon: icon
                     }).addTo(map);
+                    
 
                     marker.on('dragend', function(e) {
                         var coords = e.target.getLatLng();
@@ -172,16 +178,21 @@ class MapWidget(QWebEngineView):
                         }
                     });
                     
+                    
                     // Move marker to click location
-                    map.on('click', function(e) {
-                        var clickCoords = e.latlng;
-                        marker.setLatLng(clickCoords);
-                        marker.fire('dragend', { target: marker });
-                        document.getElementById('coordinates').innerText = "Coordinates: " + clickCoords.lat.toFixed(7) + ", " + clickCoords.lng.toFixed(7);
-                    });
+                    if (draggable) {
+                        map.on('click', function(e) {
+                            var clickCoords = e.latlng;
+                            marker.setLatLng(clickCoords);
+                            marker.fire('dragend', { target: marker });
+                            document.getElementById('coordinates').innerText = "Coordinates: " + clickCoords.lat.toFixed(7) + ", " + clickCoords.lng.toFixed(7);
+                        });
+                        }
+                    markers.push(marker); // array of markers to remove all markers
                     }
                     function move_to_favorite_place(position, zoom) {
                         map.setView(position, zoom);
+                        removeMarkers();
                         addMarker(position,'image');
                     }
                     
@@ -557,14 +568,20 @@ class RaskladGeotag(QMainWindow):
                 continue
         super().keyPressEvent(event)
 
-    def add_marker(self, lat=None, lon=None, markerclass="image"):
+    def add_marker(self, lat=None, lon=None, markerclass="image", nonmoveable=False):
         assert markerclass in ("image", "dest")
         if self.table.currentRow() is None:
             return
+
         if not lat or not lon:
+            self.map_widget.page().runJavaScript("removeMarkers();")
             js_code = f"addMarker(map.getCenter(),'{markerclass}');"
         else:
-            js_code = f"addMarker([{lat}, {lon}],'{markerclass}');"
+            if nonmoveable == False:
+                self.map_widget.page().runJavaScript("removeMarkers();")
+                js_code = f"addMarker([{lat}, {lon}],'{markerclass}');"
+            elif nonmoveable == True:
+                js_code = f"addMarker([{lat}, {lon}],'{markerclass}',false);"
 
         self.map_widget.page().runJavaScript(js_code)
 
@@ -629,6 +646,7 @@ class RaskladGeotag(QMainWindow):
 
             return deg, min, sec, loc_value
 
+        result_msg = ""
         for i, f in enumerate(self.mainfiles):
             dest_lat = None
             dest_lon = None
@@ -666,6 +684,7 @@ class RaskladGeotag(QMainWindow):
 
                 # append to object
                 was_saved_by_exiftool = False
+                """
                 with open(f["file_path"], "rb") as image_file:
                     img = exif.Image(image_file)
                 try:
@@ -679,68 +698,57 @@ class RaskladGeotag(QMainWindow):
                         img.gps_dest_latitude_ref = dest_lat_deg[3]
                         img.gps_dest_longitude = dest_lon_deg[:3]
                         img.gps_dest_longitude_ref = dest_lon_deg[3]
+                    # save
+                    with open(f["file_path"], "wb") as new_image_file:
+                        new_image_file.write(img.get_file())
+
+                    # no exception
+                    os.utime(f["file_path"], (creation_time, mod_time))
+
                 except Exception as e:
-                    try:
-                        tags = dict()
-                        if lat and lon:
-                            tags["GPSLatitude"] = lat_deg[:3]
-                            tags["GPSLatitudeRef"] = lat_deg[3]
-                            tags["GPSLongitude"] = lon_deg[:3]
-                            tags["GPSLongitudeRef"] = lon_deg[3]
-                        if dest_lat and dest_lon:
-                            tags["GPSDestLatitude"] = dest_lat
-                            tags["GPSDestLatitudeRef"] = dest_lat_deg[3]
-                            tags["GPSDestLongitude"] = dest_lon
-                            tags["GPSDestLongitudeRef"] = dest_lon_deg[3]
-                        with ExifToolHelper() as et:
-                            et.set_tags(
-                                [f["file_path"]],
-                                tags=tags,
-                                params=["-P", "-overwrite_original"],
-                            )
-                        self.coordinates_label.setText(f"Saved using exiftool")
-                        was_saved_by_exiftool = True
-                        continue
-                    except:
-                        pass
-                    self.coordinates_label.setText(f"EXIF library error " + str(e))
-                    continue
-                # save
-                if (lat and lon) or (dest_lat and dest_lon):
-                    try:
-                        with open(f["file_path"], "wb") as new_image_file:
-                            new_image_file.write(img.get_file())
-                    except:
-                        msg_box = QMessageBox()
-                        msg_box.setIcon(QMessageBox.Icon.Warning)
-                        msg_box.setText("Failed to save EXIF data.")
-                        msg_box.setInformativeText(f"File: {f['file_name']}")
-                        msg_box.setStandardButtons(
-                            QMessageBox.StandardButton.Retry
-                            | QMessageBox.StandardButton.Ignore
-                            | QMessageBox.StandardButton.Cancel
+                """
+                try:
+                    tags = dict()
+                    if lat and lon:
+                        tags["GPSLatitude"] = lat
+                        tags["GPSLatitudeRef"] = lat_deg[3]
+                        tags["GPSLongitude"] = lon
+                        tags["GPSLongitudeRef"] = lon_deg[3]
+                    if dest_lat and dest_lon:
+                        tags["GPSDestLatitude"] = dest_lat
+                        tags["GPSDestLatitudeRef"] = dest_lat_deg[3]
+                        tags["GPSDestLongitude"] = dest_lon
+                        tags["GPSDestLongitudeRef"] = dest_lon_deg[3]
+                    with ExifToolHelper() as et:
+                        et.set_tags(
+                            [f["file_path"]],
+                            tags=tags,
+                            params=["-P", "-overwrite_original"],
                         )
-                        msg_box.setDefaultButton(QMessageBox.StandardButton.Retry)
-                        ret = msg_box.exec()
+                    self.coordinates_label.setText(f"Saved using exiftool")
+                    was_saved_by_exiftool = True
+                    continue
+                except:
 
-                        if ret == QMessageBox.StandardButton.Retry:
-                            continue
-                        elif ret == QMessageBox.StandardButton.Ignore:
-                            pass
-                        elif ret == QMessageBox.StandardButton.Cancel:
-                            break
+                    self.coordinates_label.setText(f"EXIF library error " + str(e))
+                    msg_box = QMessageBox()
+                    msg_box.setIcon(QMessageBox.Icon.Warning)
+                    msg_box.setText("Failed to save EXIF data.")
+                    msg_box.setInformativeText(f"File: {f['file_name']}")
+                    msg_box.setStandardButtons(
+                        QMessageBox.StandardButton.Retry
+                        | QMessageBox.StandardButton.Ignore
+                        | QMessageBox.StandardButton.Cancel
+                    )
+                    msg_box.setDefaultButton(QMessageBox.StandardButton.Retry)
+                    ret = msg_box.exec()
+
+                    if ret == QMessageBox.StandardButton.Retry:
                         continue
-                    else:
-                        # no exception
-                        os.utime(f["file_path"], (creation_time, mod_time))
-
-                    self.coordinates_label.setText(
-                        f"Coordinates: {lat} {lon} for file {f['file_name']} saved to EXIF"
-                    )
-                else:
-                    self.coordinates_label.setText(
-                        f"Coordinates not found for file {f['file_name']}"
-                    )
+                    elif ret == QMessageBox.StandardButton.Ignore:
+                        pass
+                    elif ret == QMessageBox.StandardButton.Cancel:
+                        break
 
         self.statusBar().showMessage(f"Coordinates saved to EXIF")
         self.updateProgressBar()
@@ -930,6 +938,8 @@ class RaskladGeotag(QMainWindow):
             )
             self.label.setScaledContents(True)
 
+            self.map_widget.page().runJavaScript("removeMarkers();")
+
             if self.mode_interface == self.mode_enter_coordinates:
                 # display only photo coord
                 attr_lat = "lat"
@@ -975,6 +985,29 @@ class RaskladGeotag(QMainWindow):
                         self.statusBar().showMessage(
                             f"Move the marker to set dest coordinates for {file_name}"
                         )
+
+                        # non moveable marker for photo coord
+                        attr_lat = "lat"
+                        attr_lon = "lon"
+                        for i, f in enumerate(self.mainfiles):
+                            if f["file_path"] == full_path:
+                                if f["modified"].get(attr_lat) and f["modified"].get(
+                                    attr_lon
+                                ):
+                                    self.add_marker(
+                                        f["modified"][attr_lat],
+                                        f["modified"][attr_lon],
+                                        markerclass="image",
+                                        nonmoveable=True,
+                                    )
+                                elif f.get(attr_lat) and f.get(attr_lon):
+                                    self.add_marker(
+                                        f[attr_lat],
+                                        f[attr_lon],
+                                        markerclass="image",
+                                        nonmoveable=True,
+                                    )
+                        break
 
     def format_date(self, timestamp):
         from datetime import datetime
