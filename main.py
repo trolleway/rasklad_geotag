@@ -542,6 +542,15 @@ class RaskladGeotag(QMainWindow):
                 self.table.selectRow(next_row)
                 self.table.setCurrentCell(next_row, 0)
                 self.table_last_event_timestamp = event.timestamp()
+                
+    def select_prev_file(self, event):
+        if event.timestamp() != self.table_last_event_timestamp:
+            current_row = self.table.currentRow()
+            prev_row = current_row - 1
+            if prev_row > 0:
+                self.table.selectRow(prev_row)
+                self.table.setCurrentCell(prev_row, 0)
+                self.table_last_event_timestamp = event.timestamp()
 
     def keyPressEvent(self, event: QKeyEvent):
         if event.key() in (Qt.Key.Key_PageDown, Qt.Key.Key_Down, Qt.Key.Key_Space):
@@ -550,7 +559,13 @@ class RaskladGeotag(QMainWindow):
             not performed yet
             """
             self.select_next_file(event)
-
+        if event.key() in (Qt.Key.Key_PageUp, Qt.Key.Key_Up):
+            """somehow the event triggered twice,
+            do only if event with this timestamp
+            not performed yet
+            """
+            self.select_prev_file(event)
+            
         key_pressed = event.text()
         for fav in self.locationFavs:
             if fav["key"].upper() == key_pressed.upper():
