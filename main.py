@@ -22,7 +22,7 @@ from PyQt6.QtWidgets import (
     QProgressBar,
     QStyle,
     QFrame,
-    QTabWidget,
+     QTabWidget,
     QGroupBox,
 )
 from PyQt6.QtCore import (
@@ -43,6 +43,7 @@ import exif
 from exiftool import ExifToolHelper  # when python library failed
 import shapely.wkt
 import shapely.geometry
+import math
 
 
 class CustomWebEnginePage(QWebEnginePage):
@@ -157,7 +158,7 @@ class MapWidget(QWebEngineView):
                         iconAnchor: [10, 10]
                     });
 
-                    // Create a square marker at the the map
+                    // Create a marker at the the map
                     if (markerclass==='dest'){var icon=destIcon};
                     if (markerclass==='image'){var icon=imageIcon};
                     var marker = L.marker(position, {
@@ -631,6 +632,23 @@ class RaskladGeotag(QMainWindow):
                 # no break here, may be multiple files selected
 
     def save2exif(self):
+        def calculate_heading(lat1, lon1, lat2, lon2):
+            lat1 = math.radians(lat1)
+            lon1 = math.radians(lon1)
+            lat2 = math.radians(lat2)
+            lon2 = math.radians(lon2)
+
+            d_lon = lon2 - lon1
+
+            x = math.sin(d_lon) * math.cos(lat2)
+            y = math.cos(lat1) * math.sin(lat2) - math.sin(lat1) * math.cos(lat2) * math.cos(d_lon)
+
+            initial_bearing = math.atan2(x, y)
+            initial_bearing = math.degrees(initial_bearing)
+            compass_bearing = (initial_bearing + 360) % 360
+
+            return compass_bearing
+
         def to_deg(value, loc):
             value = float(value)
             if value < 0:
@@ -719,6 +737,13 @@ class RaskladGeotag(QMainWindow):
                         tags["GPSDestLatitudeRef"] = dest_lat_deg[3]
                         tags["GPSDestLongitude"] = dest_lon
                         tags["GPSDestLongitudeRef"] = dest_lon_deg[3]
+                        # for heading if main coordinates is changing, use new coordinate, if not changing use old image coords, if not defined - skip tag
+                        if lat and lon:
+                            tags["GPSImgDirection"] = calculate_heading(lat, lon, dest_lat, dest_lon)
+                        elif f['lat'] and f['lon']:
+                            tags["GPSImgDirection"] = calculate_heading(float(f['lat']), float(f['lon']), float(dest_lat), float(dest_lon))
+                        else:
+                            pass #not calculate gps direction
                     with ExifToolHelper() as et:
                         et.set_tags(
                             [f["file_path"]],
@@ -728,7 +753,7 @@ class RaskladGeotag(QMainWindow):
                     self.coordinates_label.setText(f"Saved using exiftool")
                     was_saved_by_exiftool = True
                     continue
-                except:
+                except Exception as e:
 
                     self.coordinates_label.setText(f"EXIF library error " + str(e))
                     msg_box = QMessageBox()
