@@ -681,6 +681,7 @@ class RaskladGeotag(QMainWindow):
 
         result_msg = ""
         for i, f in enumerate(self.mainfiles):
+            was_saved_by_exiftool = False
             dest_lat = None
             dest_lon = None
             lat = None
@@ -717,29 +718,7 @@ class RaskladGeotag(QMainWindow):
 
                 # append to object
                 was_saved_by_exiftool = False
-                """
-                with open(f["file_path"], "rb") as image_file:
-                    img = exif.Image(image_file)
-                try:
-                    if lat and lon:
-                        img.gps_latitude = lat_deg[:3]
-                        img.gps_latitude_ref = lat_deg[3]
-                        img.gps_longitude = lon_deg[:3]
-                        img.gps_longitude_ref = lon_deg[3]
-                    if dest_lat and dest_lon:
-                        img.gps_dest_latitude = dest_lat_deg[:3]
-                        img.gps_dest_latitude_ref = dest_lat_deg[3]
-                        img.gps_dest_longitude = dest_lon_deg[:3]
-                        img.gps_dest_longitude_ref = dest_lon_deg[3]
-                    # save
-                    with open(f["file_path"], "wb") as new_image_file:
-                        new_image_file.write(img.get_file())
 
-                    # no exception
-                    os.utime(f["file_path"], (creation_time, mod_time))
-
-                except Exception as e:
-                """
                 try:
                     tags = dict()
                     if lat and lon:
@@ -754,7 +733,7 @@ class RaskladGeotag(QMainWindow):
                         tags["GPSDestLongitudeRef"] = dest_lon_deg[3]
                         # for heading if main coordinates is changing, use new coordinate, if not changing use old image coords, if not defined - skip tag
                         if lat and lon:
-                            tags["GPSImgDirection"] = calculate_heading(lat, lon, dest_lat, dest_lon)
+                            tags["GPSImgDirection"] = calculate_heading(float(lat), float(lon), float(dest_lat), float(dest_lon))
                         elif f['lat'] and f['lon']:
                             tags["GPSImgDirection"] = calculate_heading(float(f['lat']), float(f['lon']), float(dest_lat), float(dest_lon))
                         else:
@@ -789,6 +768,8 @@ class RaskladGeotag(QMainWindow):
                         pass
                     elif ret == QMessageBox.StandardButton.Cancel:
                         break
+                if was_saved_by_exiftool:
+                    f[i]['is_modified']=False
 
         self.statusBar().showMessage(f"Coordinates saved to EXIF")
         self.updateProgressBar()
