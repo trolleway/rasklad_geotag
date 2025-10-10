@@ -44,6 +44,7 @@ from exiftool import ExifToolHelper  # when python library failed
 import shapely.wkt
 import shapely.geometry
 import math
+from datetime import datetime
 
 
 class CustomWebEnginePage(QWebEnginePage):
@@ -797,11 +798,27 @@ class RaskladGeotag(QMainWindow):
             self.mainfiles_init(self.folder_path)
             self.display_files(self.folder_path)
 
+
+
+
+
     def mainfiles_init(self, folder_path):
         # initialize mainfiles, read exif from disk
+        
+        
+        def get_delta_seconds(s1: str, s2: str) -> float:
+            try:
+                fmt = "%Y:%m:%d %H:%M:%S"
+                dt1 = datetime.strptime(s1, fmt)
+                dt2 = datetime.strptime(s2, fmt)
+                return abs((dt2 - dt1).total_seconds())
+            except Exception:
+                return 0.0
+    
         self.mainfiles = []
         print("mainfiles cleared")
         files = os.listdir(folder_path)
+        photo_counter = 0
         for i, file_name in enumerate(files):
             if not file_name.lower().endswith(".jpg"):
                 continue
@@ -816,7 +833,11 @@ class RaskladGeotag(QMainWindow):
                     img = exif.Image(image_file)
                     f["model"] = img.get("model")
                     f["datetime_original"] = img.get("datetime_original")
-
+                    if photo_counter==0:
+                        f['seconds_since_previous'] = 0
+                    else:
+                        f['seconds_since_previous'] = get_delta_seconds(previous_datetime,img.get("datetime_original"))
+                    previous_datetime = img.get("datetime_original")
                     # load coord
 
                     if (
@@ -871,6 +892,7 @@ class RaskladGeotag(QMainWindow):
                 print("exif read error " + f["file_path"])
 
             self.mainfiles.append(f)
+            photo_counter = photo_counter + 1
 
     def display_files(self, folder_path, supress_statusbar=False):
         """
@@ -918,6 +940,11 @@ class RaskladGeotag(QMainWindow):
                         f"Pending {f["modified"]['dest_lon']}"
                     )
                     item_destlon.setBackground(QColor("#a6d96a"))
+
+            if f.get("seconds_since_previous",120) > 60:
+                self.table.setRowHeight(i, 35)
+            else:
+                self.table.setRowHeight(i, 8)
             # Disable editing for each item
             item_file_name.setFlags(
                 item_file_name.flags() & ~Qt.ItemFlag.ItemIsEditable

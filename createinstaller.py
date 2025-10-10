@@ -43,6 +43,8 @@ subprocess.run(
         f"{os.path.join(vc_runtime_path, 'vcruntime140.dll')};.",
         "--add-data",
         f"{os.path.join(vc_runtime_path, 'vcruntime140_1.dll')};.",
+        "--add-data",
+        f"exiftool.exe;.",
         "--distpath",
         output_dir,
         script_path,
