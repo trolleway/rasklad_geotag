@@ -35,12 +35,11 @@ from PyQt6.QtCore import (
     QSettings,
     QRectF,
 )
-from PyQt6.QtGui import QPixmap, QKeyEvent, QAction, QPainter, QPen, QBrush, QColor
+from PyQt6.QtGui import QPixmap, QKeyEvent, QAction, QPainter, QBrush, QColor
 from PyQt6.QtWebEngineWidgets import QWebEngineView
 from PyQt6.QtWebEngineCore import QWebEnginePage
 from PyQt6.QtWebChannel import QWebChannel
 import exif
-from exiftool import ExifToolHelper  # when python library failed
 import shapely.wkt
 import shapely.geometry
 import math
@@ -665,114 +664,131 @@ class RaskladGeotag(QMainWindow):
 
             return compass_bearing
 
-        def to_deg(value, loc):
-            value = float(value)
-            if value < 0:
-                loc_value = loc[0]
-            else:
-                loc_value = loc[1]
-
-            abs_value = abs(value)
-            deg = int(abs_value)
-            temp_min = (abs_value - deg) * 60
-            min = int(temp_min)
-            sec = round((temp_min - min) * 60, 6)
-
-            return deg, min, sec, loc_value
+        def safe_float(value):
+            try:
+                return float(value)
+            except (TypeError, ValueError):
+                return None
+    
+        def dd_to_dms(dd):
+            """Convert decimal degrees to DMS tuple."""
+            dd = abs(dd)
+            degrees = int(dd)
+            minutes_float = (dd - degrees) * 60
+            minutes = int(minutes_float)
+            seconds = (minutes_float - minutes) * 60
+            return (degrees, minutes, seconds)
 
         result_msg = ""
+        saved_files_counter = 0
+        latlonwaschanged=False
+        destlatlonwaschanged=False
         for i, f in enumerate(self.mainfiles):
-            was_saved_by_exiftool = False
             dest_lat = None
             dest_lon = None
             lat = None
             lon = None
+            save_needed = False
             if f.get("is_modified"):
-                lat = f["modified"].get("lat")
-                lon = f["modified"].get("lon")
-                dest_lat = f["modified"].get("dest_lat")
-                dest_lon = f["modified"].get("dest_lon")
 
-                if lat and lon:
-                    lat_deg = to_deg(lat, ("S", "N"))
-                    lon_deg = to_deg(lon, ("W", "E"))
-                    creation_time = os.path.getctime(f["file_path"])
-                    mod_time = os.path.getmtime(f["file_path"])
-                    """
-                    with open(f["file_path"], "rb") as image_file:
-                        img = exif.Image(image_file)
+                """Read GPS coordinates to image using exif."""
+                with open(f["file_path"], 'rb') as img_file:
+                    img = exif.Image(img_file)
+                                    
+                if f["modified"].get("lat") is not None and f["modified"].get("lon") is not None:
+                    latlonwaschanged = True
+                    lat_dd = float(f["modified"].get("lat"))
+                    lon_dd = float(f["modified"].get("lon"))
+                    img.gps_latitude = dd_to_dms(lat_dd)
+                    img.gps_latitude_ref = 'N' if lat_dd >= 0 else 'S'
+                    img.gps_longitude = dd_to_dms(lon_dd)
+                    img.gps_longitude_ref = 'E' if lon_dd >= 0 else 'W'
+                    save_needed = True
+                
+                if f["modified"].get("dest_lat") is not None and f["modified"].get("dest_lon") is not None:
+                    destlatlonwaschanged = True    
+                    dest_lat = float(f["modified"].get("dest_lat"))
+                    dest_lon = float(f["modified"].get("dest_lon"))
+                
+                
+                    img.gps_dest_latitude = dd_to_dms(dest_lat)
+                    img.gps_dest_latitude_ref = 'N' if dest_lat >= 0 else 'S'
+                    img.gps_dest_longitude = dd_to_dms(dest_lon)
+                    img.gps_dest_longitude_ref = 'E' if dest_lon >= 0 else 'W'
+                    save_needed = True
+                
+                lat_dd = None
+                lon_dd = None
+                dest_lat = None
+                dest_lon = None
+                if latlonwaschanged or destlatlonwaschanged:
+                    #calculate direction
+                    if latlonwaschanged:
+                        lat_dd = safe_float(f["modified"].get("lat"))
+                        lon_dd = safe_float(f["modified"].get("lon"))
+                    else:
+                        lat_dd = safe_float(f.get("lat"))
+                        lon_dd = safe_float(f.get("lon"))
+                    
+                    if destlatlonwaschanged:
+                        dest_lat = safe_float(f["modified"].get("dest_lat"))
+                        dest_lon = safe_float(f["modified"].get("dest_lon"))
+                    else:
+                        dest_lat = safe_float(f.get("dest_lat"))
+                        dest_lon = safe_float(f.get("dest_lon"))                        
+                        
+                    if lat_dd is not None and dest_lat is not None:
+                        direction_deg = calculate_heading(float(lat_dd), float(lon_dd), float(dest_lat), float(dest_lon))
+                        img.gps_img_direction = direction_deg
+                        img.gps_img_direction_ref = 'T'  # 'T' for true north, 'M' for magnetic
+                '''
+                need to calculate bearing from latest version of coordinartes
+                when user open exist photo with coordinates, and add dest coorinates, bearing must 
+                use such data, not get both points from modified
+                
+                
+                if dest_lat is not None and dest_lon is not None:
+                        bearing_deg = calculate_heading(float(lat), float(lon), float(dest_lat), float(dest_lon))
+                        img.gps_img_direction = bearing_deg
+                        img.gps_img_direction_ref = 'T'  # 'T' for true north, 'M' for magnetic
+                ''' 
+                if save_needed:
                     try:
-                        img.gps_latitude = lat_deg[:3]
-                        img.gps_latitude_ref = lat_deg[3]
-                        img.gps_longitude = lon_deg[:3]
-                        img.gps_longitude_ref = lon_deg[3]
-                    except:
-                        self.coordinates_label.setText(f"EXIF library error")
+                        with open(f["file_path"], 'wb') as out_file:
+                            out_file.write(img.get_file())
+            
+                        #0000000000000000000
+
+
+                        self.coordinates_label.setText(f"Saved ")
+                        self.mainfiles[i]['is_modified']=False
+                        saved_files_counter = saved_files_counter + 1
                         continue
-                    """
+                    except Exception as e:
 
-                if dest_lat and dest_lon:
-                    dest_lat_deg = to_deg(dest_lat, ("S", "N"))
-                    dest_lon_deg = to_deg(dest_lon, ("W", "E"))
-                    creation_time = os.path.getctime(f["file_path"])
-                    mod_time = os.path.getmtime(f["file_path"])
-
-                # append to object
-                was_saved_by_exiftool = False
-
-                try:
-                    tags = dict()
-                    if lat and lon:
-                        tags["GPSLatitude"] = lat
-                        tags["GPSLatitudeRef"] = lat_deg[3]
-                        tags["GPSLongitude"] = lon
-                        tags["GPSLongitudeRef"] = lon_deg[3]
-                    if dest_lat and dest_lon:
-                        tags["GPSDestLatitude"] = dest_lat
-                        tags["GPSDestLatitudeRef"] = dest_lat_deg[3]
-                        tags["GPSDestLongitude"] = dest_lon
-                        tags["GPSDestLongitudeRef"] = dest_lon_deg[3]
-                        # for heading if main coordinates is changing, use new coordinate, if not changing use old image coords, if not defined - skip tag
-                        if lat and lon:
-                            tags["GPSImgDirection"] = calculate_heading(float(lat), float(lon), float(dest_lat), float(dest_lon))
-                        elif f['lat'] and f['lon']:
-                            tags["GPSImgDirection"] = calculate_heading(float(f['lat']), float(f['lon']), float(dest_lat), float(dest_lon))
-                        else:
-                            pass #not calculate gps direction
-                    with ExifToolHelper() as et:
-                        et.set_tags(
-                            [f["file_path"]],
-                            tags=tags,
-                            params=["-P", "-overwrite_original"],
+                        self.coordinates_label.setText(f"EXIF library error " + str(e))
+                        msg_box = QMessageBox()
+                        msg_box.setIcon(QMessageBox.Icon.Warning)
+                        msg_box.setText("Failed to save EXIF data.")
+                        msg_box.setInformativeText(f"File: {f['file_name']}")
+                        msg_box.setStandardButtons(
+                            QMessageBox.StandardButton.Retry
+                            | QMessageBox.StandardButton.Ignore
+                            | QMessageBox.StandardButton.Cancel
                         )
-                    self.coordinates_label.setText(f"Saved using exiftool")
-                    was_saved_by_exiftool = True
-                    continue
-                except Exception as e:
+                        msg_box.setDefaultButton(QMessageBox.StandardButton.Retry)
+                        ret = msg_box.exec()
 
-                    self.coordinates_label.setText(f"EXIF library error " + str(e))
-                    msg_box = QMessageBox()
-                    msg_box.setIcon(QMessageBox.Icon.Warning)
-                    msg_box.setText("Failed to save EXIF data.")
-                    msg_box.setInformativeText(f"File: {f['file_name']}")
-                    msg_box.setStandardButtons(
-                        QMessageBox.StandardButton.Retry
-                        | QMessageBox.StandardButton.Ignore
-                        | QMessageBox.StandardButton.Cancel
-                    )
-                    msg_box.setDefaultButton(QMessageBox.StandardButton.Retry)
-                    ret = msg_box.exec()
+                        if ret == QMessageBox.StandardButton.Retry:
+                            continue
+                        elif ret == QMessageBox.StandardButton.Ignore:
+                            pass
+                        elif ret == QMessageBox.StandardButton.Cancel:
+                            break
 
-                    if ret == QMessageBox.StandardButton.Retry:
-                        continue
-                    elif ret == QMessageBox.StandardButton.Ignore:
-                        pass
-                    elif ret == QMessageBox.StandardButton.Cancel:
-                        break
-                if was_saved_by_exiftool:
-                    f[i]['is_modified']=False
+                    
 
-        self.statusBar().showMessage(f"Coordinates saved to EXIF")
+        self.statusBar().showMessage(f"{saved_files_counter} images coordinates saved to EXIF")
         self.updateProgressBar()
         self.display_files(self.folder_path, supress_statusbar=True)
 
@@ -816,7 +832,6 @@ class RaskladGeotag(QMainWindow):
                 return 0.0
     
         self.mainfiles = []
-        print("mainfiles cleared")
         files = os.listdir(folder_path)
         photo_counter = 0
         for i, file_name in enumerate(files):
@@ -925,19 +940,19 @@ class RaskladGeotag(QMainWindow):
             item_destlon = QTableWidgetItem(str(f.get("dest_lon", "")))
             if f.get("is_modified") is not None and f.get("modified") is not None:
                 if f["modified"].get("lat"):
-                    item_lat = QTableWidgetItem(f"Pending {f["modified"]['lat']}")
+                    item_lat = QTableWidgetItem(f"✔️ {f["modified"]['lat']}")
                     item_lat.setBackground(QColor("#a6d96a"))
                 if f["modified"].get("lon"):
-                    item_lon = QTableWidgetItem(f"Pending {f["modified"]['lon']}")
+                    item_lon = QTableWidgetItem(f"✔️ {f["modified"]['lon']}")
                     item_lon.setBackground(QColor("#a6d96a"))
                 if f["modified"].get("dest_lat"):
                     item_destlat = QTableWidgetItem(
-                        f"Pending {f["modified"]['dest_lat']}"
+                        f"✔️ {f["modified"]['dest_lat']}"
                     )
                     item_destlat.setBackground(QColor("#a6d96a"))
                 if f["modified"].get("dest_lon"):
                     item_destlon = QTableWidgetItem(
-                        f"Pending {f["modified"]['dest_lon']}"
+                        f"✔️ {f["modified"]['dest_lon']}"
                     )
                     item_destlon.setBackground(QColor("#a6d96a"))
 

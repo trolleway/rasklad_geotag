@@ -4,10 +4,10 @@ import subprocess
 import sys
 
 # Define the path to the Python script
-script_path = "c:/Users/troll/rasklad_geotag/main.py"
+script_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "main.py")
 
 # Define the output directory for the build
-output_dir = "c:/Users/troll/rasklad_geotag/dist"
+output_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "distrib")
 
 # Define the path to the Visual C++ runtime DLLs
 vc_runtime_path = "C:/Windows/System32"
@@ -43,8 +43,6 @@ subprocess.run(
         f"{os.path.join(vc_runtime_path, 'vcruntime140.dll')};.",
         "--add-data",
         f"{os.path.join(vc_runtime_path, 'vcruntime140_1.dll')};.",
-        "--add-data",
-        f"exiftool.exe;.",
         "--distpath",
         output_dir,
         script_path,

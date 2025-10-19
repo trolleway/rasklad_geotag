@@ -6,7 +6,7 @@ Rasklad Geotag is a photo geotagging application built with PyQt6. It allows use
 ## Differences from others
 
 - Simplificated interface for quick iteractions with many of files
-- Already geotagged files if not interactive on map, it speed up of entering
+- Already geotagged files optionaly hide from map, it speed up of entering
 
 ## Features
 - **EXIF Coordinates Management**: Add, remove, and save EXIF coordinates to image files.
