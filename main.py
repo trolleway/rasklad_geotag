@@ -679,7 +679,6 @@ class RaskladGeotag(QMainWindow):
             seconds = (minutes_float - minutes) * 60
             return (degrees, minutes, seconds)
 
-        result_msg = ""
         saved_files_counter = 0
         latlonwaschanged=False
         destlatlonwaschanged=False
@@ -690,33 +689,35 @@ class RaskladGeotag(QMainWindow):
             lon = None
             save_needed = False
             if f.get("is_modified"):
-
-                """Read GPS coordinates to image using exif."""
-                with open(f["file_path"], 'rb') as img_file:
-                    img = exif.Image(img_file)
-                                    
-                if f["modified"].get("lat") is not None and f["modified"].get("lon") is not None:
-                    latlonwaschanged = True
-                    lat_dd = float(f["modified"].get("lat"))
-                    lon_dd = float(f["modified"].get("lon"))
-                    img.gps_latitude = dd_to_dms(lat_dd)
-                    img.gps_latitude_ref = 'N' if lat_dd >= 0 else 'S'
-                    img.gps_longitude = dd_to_dms(lon_dd)
-                    img.gps_longitude_ref = 'E' if lon_dd >= 0 else 'W'
-                    save_needed = True
-                
-                if f["modified"].get("dest_lat") is not None and f["modified"].get("dest_lon") is not None:
-                    destlatlonwaschanged = True    
-                    dest_lat = float(f["modified"].get("dest_lat"))
-                    dest_lon = float(f["modified"].get("dest_lon"))
-                
-                
-                    img.gps_dest_latitude = dd_to_dms(dest_lat)
-                    img.gps_dest_latitude_ref = 'N' if dest_lat >= 0 else 'S'
-                    img.gps_dest_longitude = dd_to_dms(dest_lon)
-                    img.gps_dest_longitude_ref = 'E' if dest_lon >= 0 else 'W'
-                    save_needed = True
-                
+                try:
+                    """Read GPS coordinates to image using exif."""
+                    with open(f["file_path"], 'rb') as img_file:
+                        img = exif.Image(img_file)
+                                        
+                    if f["modified"].get("lat") is not None and f["modified"].get("lon") is not None:
+                        latlonwaschanged = True
+                        lat_dd = float(f["modified"].get("lat"))
+                        lon_dd = float(f["modified"].get("lon"))
+                        img.gps_latitude = dd_to_dms(lat_dd)
+                        img.gps_latitude_ref = 'N' if lat_dd >= 0 else 'S'
+                        img.gps_longitude = dd_to_dms(lon_dd)
+                        img.gps_longitude_ref = 'E' if lon_dd >= 0 else 'W'
+                        save_needed = True
+                    
+                    if f["modified"].get("dest_lat") is not None and f["modified"].get("dest_lon") is not None:
+                        destlatlonwaschanged = True    
+                        dest_lat = float(f["modified"].get("dest_lat"))
+                        dest_lon = float(f["modified"].get("dest_lon"))
+                    
+                    
+                        img.gps_dest_latitude = dd_to_dms(dest_lat)
+                        img.gps_dest_latitude_ref = 'N' if dest_lat >= 0 else 'S'
+                        img.gps_dest_longitude = dd_to_dms(dest_lon)
+                        img.gps_dest_longitude_ref = 'E' if dest_lon >= 0 else 'W'
+                        save_needed = True
+                except:
+                    continue
+                    
                 lat_dd = None
                 lon_dd = None
                 dest_lat = None
