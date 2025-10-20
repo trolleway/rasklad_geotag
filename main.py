@@ -790,6 +790,8 @@ class RaskladGeotag(QMainWindow):
                     
 
         self.statusBar().showMessage(f"{saved_files_counter} images coordinates saved to EXIF")
+        self.mainfiles_init(self.folder_path)
+
         self.updateProgressBar()
         self.display_files(self.folder_path, supress_statusbar=True)
 
@@ -939,6 +941,8 @@ class RaskladGeotag(QMainWindow):
             item_lon = QTableWidgetItem(str(f.get("lon", "")))
             item_destlat = QTableWidgetItem(str(f.get("dest_lat", "")))
             item_destlon = QTableWidgetItem(str(f.get("dest_lon", "")))
+            #TODO: prorably this ✔️ feature will deleted for simplicity to port code on electronjs
+            # just call re-read directory instead 
             if f.get("is_modified") is not None and f.get("modified") is not None:
                 if f["modified"].get("lat"):
                     item_lat = QTableWidgetItem(f"✔️ {f["modified"]['lat']}")
@@ -957,8 +961,8 @@ class RaskladGeotag(QMainWindow):
                     )
                     item_destlon.setBackground(QColor("#a6d96a"))
 
-            if f.get("seconds_since_previous",120) > 60:
-                self.table.setRowHeight(i, 35)
+            if f.get("seconds_since_previous",60) > 60:
+                self.table.setRowHeight(i, 75)
             else:
                 self.table.setRowHeight(i, 8)
             # Disable editing for each item
@@ -984,6 +988,7 @@ class RaskladGeotag(QMainWindow):
         if not supress_statusbar:
             self.statusBar().showMessage(f"Select image in table to edit coordinates")
         self.updateProgressBar()
+
 
     def display_image(self):
         selected_items = self.table.selectedItems()
