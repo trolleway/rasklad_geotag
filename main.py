@@ -812,8 +812,11 @@ class RaskladGeotag(QMainWindow):
             self.coordinate_set_progressBar.setValue(round(100 / (total / has_coords)))
 
     def open_folder_dialog(self):
-        self.folder_path = QFileDialog.getExistingDirectory(self, "Open Folder")
+        settings = QSettings("Trolleway", "RaskladGeotag")
+        saved_file_dir = settings.value("file_dir", ".") # Default to dot
+        self.folder_path = QFileDialog.getExistingDirectory(self, "Open Folder with jpg",saved_file_dir)
         if self.folder_path:
+            settings.setValue("file_dir",  self.folder_path)
             self.mainfiles_init(self.folder_path)
             self.display_files(self.folder_path)
 
