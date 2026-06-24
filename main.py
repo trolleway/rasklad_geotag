@@ -679,7 +679,6 @@ class RaskladGeotag(QMainWindow):
             seconds = (minutes_float - minutes) * 60
             return (degrees, minutes, seconds)
 
-        result_msg = ""
         saved_files_counter = 0
         latlonwaschanged=False
         destlatlonwaschanged=False
@@ -690,33 +689,35 @@ class RaskladGeotag(QMainWindow):
             lon = None
             save_needed = False
             if f.get("is_modified"):
-
-                """Read GPS coordinates to image using exif."""
-                with open(f["file_path"], 'rb') as img_file:
-                    img = exif.Image(img_file)
-                                    
-                if f["modified"].get("lat") is not None and f["modified"].get("lon") is not None:
-                    latlonwaschanged = True
-                    lat_dd = float(f["modified"].get("lat"))
-                    lon_dd = float(f["modified"].get("lon"))
-                    img.gps_latitude = dd_to_dms(lat_dd)
-                    img.gps_latitude_ref = 'N' if lat_dd >= 0 else 'S'
-                    img.gps_longitude = dd_to_dms(lon_dd)
-                    img.gps_longitude_ref = 'E' if lon_dd >= 0 else 'W'
-                    save_needed = True
-                
-                if f["modified"].get("dest_lat") is not None and f["modified"].get("dest_lon") is not None:
-                    destlatlonwaschanged = True    
-                    dest_lat = float(f["modified"].get("dest_lat"))
-                    dest_lon = float(f["modified"].get("dest_lon"))
-                
-                
-                    img.gps_dest_latitude = dd_to_dms(dest_lat)
-                    img.gps_dest_latitude_ref = 'N' if dest_lat >= 0 else 'S'
-                    img.gps_dest_longitude = dd_to_dms(dest_lon)
-                    img.gps_dest_longitude_ref = 'E' if dest_lon >= 0 else 'W'
-                    save_needed = True
-                
+                try:
+                    """Read GPS coordinates to image using exif."""
+                    with open(f["file_path"], 'rb') as img_file:
+                        img = exif.Image(img_file)
+                                        
+                    if f["modified"].get("lat") is not None and f["modified"].get("lon") is not None:
+                        latlonwaschanged = True
+                        lat_dd = float(f["modified"].get("lat"))
+                        lon_dd = float(f["modified"].get("lon"))
+                        img.gps_latitude = dd_to_dms(lat_dd)
+                        img.gps_latitude_ref = 'N' if lat_dd >= 0 else 'S'
+                        img.gps_longitude = dd_to_dms(lon_dd)
+                        img.gps_longitude_ref = 'E' if lon_dd >= 0 else 'W'
+                        save_needed = True
+                    
+                    if f["modified"].get("dest_lat") is not None and f["modified"].get("dest_lon") is not None:
+                        destlatlonwaschanged = True    
+                        dest_lat = float(f["modified"].get("dest_lat"))
+                        dest_lon = float(f["modified"].get("dest_lon"))
+                    
+                    
+                        img.gps_dest_latitude = dd_to_dms(dest_lat)
+                        img.gps_dest_latitude_ref = 'N' if dest_lat >= 0 else 'S'
+                        img.gps_dest_longitude = dd_to_dms(dest_lon)
+                        img.gps_dest_longitude_ref = 'E' if dest_lon >= 0 else 'W'
+                        save_needed = True
+                except:
+                    continue
+                    
                 lat_dd = None
                 lon_dd = None
                 dest_lat = None
@@ -789,6 +790,8 @@ class RaskladGeotag(QMainWindow):
                     
 
         self.statusBar().showMessage(f"{saved_files_counter} images coordinates saved to EXIF")
+        self.mainfiles_init(self.folder_path)
+
         self.updateProgressBar()
         self.display_files(self.folder_path, supress_statusbar=True)
 
@@ -809,8 +812,11 @@ class RaskladGeotag(QMainWindow):
             self.coordinate_set_progressBar.setValue(round(100 / (total / has_coords)))
 
     def open_folder_dialog(self):
-        self.folder_path = QFileDialog.getExistingDirectory(self, "Open Folder")
+        settings = QSettings("Trolleway", "RaskladGeotag")
+        saved_file_dir = settings.value("file_dir", ".") # Default to dot
+        self.folder_path = QFileDialog.getExistingDirectory(self, "Open Folder with jpg",saved_file_dir)
         if self.folder_path:
+            settings.setValue("file_dir",  self.folder_path)
             self.mainfiles_init(self.folder_path)
             self.display_files(self.folder_path)
 
@@ -938,6 +944,8 @@ class RaskladGeotag(QMainWindow):
             item_lon = QTableWidgetItem(str(f.get("lon", "")))
             item_destlat = QTableWidgetItem(str(f.get("dest_lat", "")))
             item_destlon = QTableWidgetItem(str(f.get("dest_lon", "")))
+            #TODO: prorably this ✔️ feature will deleted for simplicity to port code on electronjs
+            # just call re-read directory instead 
             if f.get("is_modified") is not None and f.get("modified") is not None:
                 if f["modified"].get("lat"):
                     item_lat = QTableWidgetItem(f"✔️ {f["modified"]['lat']}")
@@ -956,8 +964,8 @@ class RaskladGeotag(QMainWindow):
                     )
                     item_destlon.setBackground(QColor("#a6d96a"))
 
-            if f.get("seconds_since_previous",120) > 60:
-                self.table.setRowHeight(i, 35)
+            if f.get("seconds_since_previous",60) > 60:
+                self.table.setRowHeight(i, 75)
             else:
                 self.table.setRowHeight(i, 8)
             # Disable editing for each item
@@ -983,6 +991,7 @@ class RaskladGeotag(QMainWindow):
         if not supress_statusbar:
             self.statusBar().showMessage(f"Select image in table to edit coordinates")
         self.updateProgressBar()
+
 
     def display_image(self):
         selected_items = self.table.selectedItems()
