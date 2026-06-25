@@ -541,6 +541,8 @@ class RaskladGeotag(QMainWindow):
         return super().eventFilter(source, event)
 
     def select_next_file(self, event):
+        import time
+        time.sleep(0.5)
         if event.timestamp() != self.table_last_event_timestamp:
             current_row = self.table.currentRow()
             next_row = current_row + 1
@@ -559,6 +561,9 @@ class RaskladGeotag(QMainWindow):
                 self.table_last_event_timestamp = event.timestamp()
 
     def keyPressEvent(self, event: QKeyEvent):
+        if event.isAutoRepeat():
+            return  # Qt filter for some king of switch bounce
+    
         if event.key() in (Qt.Key.Key_PageDown, Qt.Key.Key_Down, Qt.Key.Key_Space):
             """somehow the event triggered twice,
             do only if event with this timestamp
@@ -584,7 +589,7 @@ class RaskladGeotag(QMainWindow):
                 retrieved_point = shapely.wkt.loads(wkt_point)
                 retrieved_latitude = retrieved_point.y
                 retrieved_longitude = retrieved_point.x
-                zoom = 16
+                zoom = 17
                 
                 js_code = f"move_to_favorite_place([{retrieved_latitude}, {retrieved_longitude}],{zoom});"
                 self.statusBar().showMessage(f'You pressed the key for {fav["name"]}')
