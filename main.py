@@ -236,8 +236,11 @@ class EditFavoritesDialog(QDialog):
             self.fav_list.addItem(f"{fav['key']} {fav['name']}")
 
     def add_favorite(self):
+        if self.parent.mapMarkerLon is None:
+            QMessageBox.warning(None, "Warning", 'Click "Add marker to center" and move marker to favorite location')
+            return
         key, ok = QInputDialog.getText(
-            self, "Add Favorite", "Enter key: One didgit or letter, case insensitive"
+            self, f"Add current marker position to favorite", "Enter key: One digit or letter, case insensitive"
         )
         if ok and key:
             name, ok = QInputDialog.getText(self, "Add Favorite", "Enter name:")
@@ -255,6 +258,9 @@ class EditFavoritesDialog(QDialog):
                 )
 
     def edit_favorite(self):
+        if self.parent.mapMarkerLon is None:
+            QMessageBox.warning(None, "Warning", 'Click "Add marker to center" and move marker to favorite location')
+            return
         current_item = self.fav_list.currentItem()
         if current_item:
             key, name = current_item.text().split(" ", 1)
@@ -274,7 +280,7 @@ class EditFavoritesDialog(QDialog):
                             fav["key"] = new_key.upper()
                             fav["name"] = new_name
                             fav["wkt_geom"] = (
-                                f"POINT({self.parent.map_widget.center().lng} {self.parent.map_widget.center().lat})"
+                                f"POINT({self.parent.mapMarkerLon} {self.parent.mapMarkerLat})"
                             )
                             break
                     self.save_favorites()
@@ -570,8 +576,8 @@ class RaskladGeotag(QMainWindow):
         for fav in self.locationFavs:
             if fav["key"].upper() == key_pressed.upper():
                 event.accept()
-                self.statusBar().showMessage(f'You pressed the key for {fav["name"]}')
-                # wkt_point = "POINT(37.620393 55.734036)"
+                
+                # wkt_point = "POINT(37.666 55.666)"
                 wkt_point = fav.get("wkt_geom")
                 if not wkt_point:
                     continue
@@ -579,7 +585,9 @@ class RaskladGeotag(QMainWindow):
                 retrieved_latitude = retrieved_point.y
                 retrieved_longitude = retrieved_point.x
                 zoom = 16
+                
                 js_code = f"move_to_favorite_place([{retrieved_latitude}, {retrieved_longitude}],{zoom});"
+                self.statusBar().showMessage(f'You pressed the key for {fav["name"]}')
                 self.map_widget.page().runJavaScript(js_code)
                 continue
         super().keyPressEvent(event)
