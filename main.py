@@ -34,6 +34,7 @@ from PyQt6.QtCore import (
     QEvent,
     QSettings,
     QRectF,
+    QUrl,
 )
 from PyQt6.QtGui import QPixmap, QKeyEvent, QAction, QPainter, QBrush, QColor
 from PyQt6.QtWebEngineWidgets import QWebEngineView
@@ -382,6 +383,8 @@ class RaskladGeotag(QMainWindow):
         layout.addWidget(self.table)
         layout.addWidget(self.file_path_label)
         layout.addWidget(self.label)
+        self.link_label=QLabel(self)
+        layout.addWidget(self.link_label)
 
         layout_horizontal.addLayout(layout)
 
@@ -1027,12 +1030,15 @@ class RaskladGeotag(QMainWindow):
             pixmap = QPixmap(full_path)
             self.label.setPixmap(
                 pixmap.scaled(
-                    self.label.width(),
-                    self.label.height(),
+                    500,#self.label.width(),
+                    500,#self.label.height(),
                     Qt.AspectRatioMode.KeepAspectRatio,
+                    Qt.TransformationMode.SmoothTransformation
                 )
             )
-            self.label.setScaledContents(True)
+            file_url = QUrl.fromLocalFile(full_path).toString()
+            self.link_label.setText(f'<a href="{file_url}" style="color: #0066cc; text-decoration: underline;">Open original image in system viewer</a>')
+            #self.label.setScaledContents(True)
 
             self.map_widget.page().runJavaScript("removeMarkers();")
 
