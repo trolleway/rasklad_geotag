@@ -520,6 +520,7 @@ class RaskladGeotag(QMainWindow):
         layout.addWidget(self.file_path_label)
         layout.addWidget(self.label)
         self.link_label=QLabel(self)
+        self.link_label.setOpenExternalLinks(True)
         layout.addWidget(self.link_label)
 
         layout_horizontal.addLayout(layout)
