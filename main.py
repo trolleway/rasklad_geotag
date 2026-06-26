@@ -145,7 +145,7 @@ class MapWidget(QWebEngineView):
                     //console.log("after delete markers is  "+markers.length);
                 }
                 function addMarker(position, markerclass, draggable=true) {
-                   console.log("adding marker draggable = "+draggable);
+                    //console.log("adding marker draggable = "+draggable);
                     // Custom  icon
                     var destIcon = L.icon({
                         iconUrl: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgdmlld0JveD0iMCAwIDEwMCAxMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHg9IjMiIHk9IjMiIHdpZHRoPSI5NCIgaGVpZ2h0PSI5NCIgc3Ryb2tlPSJibGFjayIgc3Ryb2tlLXdpZHRoPSI2IiBzdHJva2UtbWl0ZXJsaW1pdD0iMi42MTMxMyIvPgo8cGF0aCBkPSJNNTAgMFYxMDAiIHN0cm9rZT0iYmxhY2siIHN0cm9rZS13aWR0aD0iMyIvPgo8cGF0aCBkPSJNMCA1MEMyLjgxNDA3IDUwIDY3LjgzOTIgNTAgMTAwIDUwIiBzdHJva2U9ImJsYWNrIiBzdHJva2Utd2lkdGg9IjMiLz4KPC9zdmc+Cg==', // Base64 encoded SVG
@@ -370,12 +370,13 @@ class RaskladGeotag(QMainWindow):
         self.table.setColumnWidth(0, 200)
         self.table.setColumnWidth(1, 180)
         self.table.itemSelectionChanged.connect(self.display_image)
-        self.table.installEventFilter(self)
+        #self.table.installEventFilter(self)
         self.table.setMinimumHeight(300)
         self.table_last_event_timestamp = None
 
         self.file_path_label = QLabel(self)
         self.file_path_label.setText("Selected File Path: ")
+        self.table.viewport().installEventFilter(self)
 
         layout.addWidget(self.select_button)
         layout.addWidget(self.table)
@@ -535,14 +536,24 @@ class RaskladGeotag(QMainWindow):
         self.statusBar().showMessage("Switched to image coordinates edit mode.")
 
     def eventFilter(self, source, event):
+        if event.type() == QEvent.Type.Wheel:
+            self.mouseWheelEvent(event)
+
         if event.type() == QEvent.Type.KeyPress and source is self.table:
             self.keyPressEvent(event)
             return True
         return super().eventFilter(source, event)
 
-    def select_next_file(self, event):
+    def mouseWheelEvent(self, event):
+        if event.angleDelta().y() < 0:
+            self.select_next_file(event,sleep=0)
+        if event.angleDelta().y() > 0:
+            self.select_prev_file(event,sleep=0)
+                        
+    def select_next_file(self, event,sleep=0.5):
         import time
-        time.sleep(0.5)
+        if sleep>0:
+            time.sleep(sleep)
         if event.timestamp() != self.table_last_event_timestamp:
             current_row = self.table.currentRow()
             next_row = current_row + 1
@@ -551,7 +562,7 @@ class RaskladGeotag(QMainWindow):
                 self.table.setCurrentCell(next_row, 0)
                 self.table_last_event_timestamp = event.timestamp()
                 
-    def select_prev_file(self, event):
+    def select_prev_file(self, event, sleep=0.5):
         if event.timestamp() != self.table_last_event_timestamp:
             current_row = self.table.currentRow()
             prev_row = current_row - 1
