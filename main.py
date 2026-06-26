@@ -45,7 +45,7 @@ import shapely.wkt
 import shapely.geometry
 import math
 from datetime import datetime
-
+import json
 
 class CustomWebEnginePage(QWebEnginePage):
     def javaScriptConsoleMessage(self, level, message, line_number, source_id):
@@ -100,8 +100,16 @@ class MapWidget(QWebEngineView):
 
         self.channel.registerObject("jsHandler", self.jsHandler)
         self.page().setWebChannel(self.channel)
+        self.loadFinished.connect(self._on_load_finished)
 
         self.setHtml(self.get_initial_map())
+        
+    def _on_load_finished(self, ok):
+        if ok:
+            # Look up to the main window container to trigger the layer initialization safely
+            main_window = self.window()
+            if hasattr(main_window, 'reload_TMS_layers'):
+                main_window.reload_TMS_layers()
 
     def get_initial_map(self):
         leaflet_html = """
@@ -121,11 +129,47 @@ class MapWidget(QWebEngineView):
             <div id="coordinates">Coordinates: </div>
             <script>
                 var map = L.map('map',{
-            wheelPxPerZoomLevel: 10 // Add this option
+            wheelPxPerZoomLevel: 10 
         }).setView([55.666, 37.666], 11);
-                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                }).addTo(map);
+                
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            }).addTo(map);
+
+            // Array for overlay layers
+            var overlayLayers = [];
+
+            // Initial overlay (will be removable)
+            //var initialOverlay = L.tileLayer('https://trolleway.nextgis.com/api/component/render/tile?resource=7779&nd=204&z={z}&x={x}&y={y}', {
+            //    tms: false,
+            //    attribution: 'OSM kerbs'
+            //}).addTo(map);
+            //overlayLayers.push(initialOverlay);
+
+            // Functions to manage overlays
+            function removeOverlayLayers() {
+                for (var i = 0; i < overlayLayers.length; i++) {
+                    map.removeLayer(overlayLayers[i]);
+                }
+                overlayLayers = [];
+            }
+
+            function addOverlayLayer(url, options) {
+                var layer = L.tileLayer(url, options).addTo(map);
+                overlayLayers.push(layer);
+            }
+
+            function updateOverlayLayers(layers) {
+                removeOverlayLayers();
+                for (var i = 0; i < layers.length; i++) {
+                    var data = layers[i];
+                    var options = {
+                        tms: false,
+                        attribution: data.name || data.url
+                    };
+                    addOverlayLayer(data.url, options);
+                }
+            }
 
                 
                 var markers = [];
@@ -203,8 +247,96 @@ class MapWidget(QWebEngineView):
         </html>
         """
         return leaflet_html
+    
+class EditTMSLayersDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.parent = parent
+        self.setWindowTitle("Edit TMS overlays")
+        self.setGeometry(150, 150, 400, 300)
+        layout = QVBoxLayout(self)
 
+        self.list_widget = QListWidget()
+        layout.addWidget(self.list_widget)
 
+        btn_layout = QHBoxLayout()
+        self.add_btn = QPushButton("Add")
+        self.edit_btn = QPushButton("Edit")
+        self.remove_btn = QPushButton("Remove")
+        btn_layout.addWidget(self.add_btn)
+        btn_layout.addWidget(self.edit_btn)
+        btn_layout.addWidget(self.remove_btn)
+        layout.addLayout(btn_layout)
+
+        self.add_btn.clicked.connect(self.add_layer)
+        self.edit_btn.clicked.connect(self.edit_layer)
+        self.remove_btn.clicked.connect(self.remove_layer)
+
+        self.load_layers()
+
+    def load_layers(self):
+        self.list_widget.clear()
+        for layer in self.parent.TMS_overlays:
+            self.list_widget.addItem(f"{layer['name']} ({layer['url']})")
+
+    def add_layer(self):
+        name, ok = QInputDialog.getText(self, "Add TMS Layer", "Enter layer name:")
+        if not ok or not name:
+            return
+        url, ok = QInputDialog.getText(self, "Add TMS Layer", "Enter tile URL (use {z}, {x}, {y}):")
+        if not ok or not url:
+            return
+        self.parent.TMS_overlays.append({"name": name, "url": url})
+        self.parent.save_TMS_overlays()
+        self.load_layers()
+        self.parent.reload_TMS_layers()  # update map
+
+    def edit_layer(self):
+        current = self.list_widget.currentItem()
+        if not current:
+            return
+        # parse name and url
+        text = current.text()
+        # format: "name (url)"
+        if " (" not in text or not text.endswith(")"):
+            return
+        name_part, url_part = text.rsplit(" (", 1)
+        url_part = url_part[:-1]  # remove trailing ')'
+        old_name = name_part
+        old_url = url_part
+        # find the layer in the list
+        for layer in self.parent.TMS_overlays:
+            if layer["name"] == old_name and layer["url"] == old_url:
+                new_name, ok = QInputDialog.getText(self, "Edit TMS Layer", "Enter new name:", text=old_name)
+                if ok and new_name:
+                    new_url, ok = QInputDialog.getText(self, "Edit TMS Layer", "Enter new tile URL:", text=old_url)
+                    if ok and new_url:
+                        layer["name"] = new_name
+                        layer["url"] = new_url
+                        self.parent.save_TMS_overlays()
+                        self.load_layers()
+                        self.parent.reload_TMS_layers()  # update map
+                break
+
+    def remove_layer(self):
+        current = self.list_widget.currentItem()
+        if not current:
+            return
+        text = current.text()
+        if " (" not in text or not text.endswith(")"):
+            return
+        name_part, url_part = text.rsplit(" (", 1)
+        url_part = url_part[:-1]
+        old_name = name_part
+        old_url = url_part
+        for layer in self.parent.TMS_overlays:
+            if layer["name"] == old_name and layer["url"] == old_url:
+                self.parent.TMS_overlays.remove(layer)
+                self.parent.save_TMS_overlays()
+                self.load_layers()
+                self.parent.reload_TMS_layers()  # update map
+                break
+            
 class EditFavoritesDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -321,6 +453,7 @@ class RaskladGeotag(QMainWindow):
         self.filter_has_coords_enabled = False  # Initial state of the filter
 
         self.locationFavs = self.load_favorites()
+        self.TMS_overlays = self.load_TMS_overlays()
         self.mapMarkerLat = None
         self.mapMarkerLon = None
 
@@ -330,7 +463,10 @@ class RaskladGeotag(QMainWindow):
         self.mode_interface = self.mode_enter_coordinates
 
         self.initUI()
-
+    def save_TMS_overlays(self): #TODO move to EditTMSLayersDialog for less coupling
+        settings = QSettings("Trolleway", "RaskladGeotag")
+        settings.setValue("TMS_overlays", self.TMS_overlays)
+        
     def initUI(self):
         widget = QWidget()
         self.setCentralWidget(widget)
@@ -401,6 +537,10 @@ class RaskladGeotag(QMainWindow):
         self.add_marker_button = QPushButton("Add Marker to Center")
         self.add_marker_button.clicked.connect(self.add_marker)
         layout_vertical_right.addWidget(self.add_marker_button)
+        self.add_layers_button = QPushButton("Set layers")
+        self.add_layers_button.clicked.connect(self.reload_TMS_layers)
+        layout_vertical_right.addWidget(self.add_layers_button)
+        
         self.map_fav_widget = QListWidget()
         self.map_fav_widget.setFixedHeight(150)
         layout_vertical_right.addWidget(self.map_fav_widget)
@@ -459,6 +599,7 @@ class RaskladGeotag(QMainWindow):
         self.statusBar().showMessage("Select a directory with images to start")
         self.create_main_menu()
         self.display_sorted_location_favorites(self.map_fav_widget)
+        self.reload_TMS_layers()
 
     def on_tab_change(self, index):
         js_code = f"removeMarkers();"
@@ -493,15 +634,38 @@ class RaskladGeotag(QMainWindow):
         edit_favorites_action.triggered.connect(self.open_edit_favorites_dialog)
         file_menu.addAction(edit_favorites_action)
 
+        edit_favorites_action = QAction("Edit map TMS overlays", self)
+        edit_favorites_action.triggered.connect(self.open_TMS_overlays_dialog)
+        file_menu.addAction(edit_favorites_action)        
+
         exit_action = QAction("Exit", self)
         exit_action.setShortcut("Ctrl+Q")
         exit_action.triggered.connect(self.close)
         file_menu.addAction(exit_action)
-
+    
+    def open_TMS_overlays_dialog(self):
+        dialog = EditTMSLayersDialog(self)
+        dialog.exec()
     def open_edit_favorites_dialog(self):
         dialog = EditFavoritesDialog(self)
         dialog.exec()
 
+    def load_TMS_overlays(self):
+        settings = QSettings("Trolleway", "RaskladGeotag")
+        overlays = settings.value("TMS_overlays",[])
+
+        return overlays
+
+    def load_TMS_overlays0(self):
+        settings = QSettings("Trolleway", "RaskladGeotag")
+        #return settings.value("locationFavs", [])
+        #return ({'url':'https://trolleway.nextgis.com/api/component/render/tile?resource=7779&nd=204&z={z}&x={x}&y={y}','name':'OSM kerbs'})
+        TMS_overlays = [
+            {"url": "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", "name": "OpenStreetMap"},
+        {"url": "https://trolleway.nextgis.com/api/component/render/tile?resource=7779&nd=204&z={z}&x={x}&y={y}", "name": "OSM kerbs"},
+        
+        ]
+        return TMS_overlays[1:2]
     def load_favorites(self):
         settings = QSettings("Trolleway", "RaskladGeotag")
         return settings.value("locationFavs", [])
@@ -610,7 +774,16 @@ class RaskladGeotag(QMainWindow):
                 self.map_widget.page().runJavaScript(js_code)
                 continue
         super().keyPressEvent(event)
-
+    def reload_TMS_layers(self):
+        if not self.TMS_overlays:
+            
+            layers_json = json.dumps([])
+        else:
+            layers_json = json.dumps(self.TMS_overlays)
+        js_code = f"updateOverlayLayers({layers_json});"
+        self.map_widget.page().runJavaScript(js_code)
+        self.statusBar().showMessage(f"Updated TMS overlays: {len(self.TMS_overlays)} layers")
+            
     def add_marker(self, lat=None, lon=None, markerclass="image", nonmoveable=False):
         assert markerclass in ("image", "dest")
         if self.table.currentRow() is None:
