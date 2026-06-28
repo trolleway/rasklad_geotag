@@ -173,11 +173,20 @@ class MapWidget(QWebEngineView):
 
                 
                 var markers = [];
+                var activeMarker = null;
 
                 new QWebChannel(qt.webChannelTransport, function(channel) {
                     window.jsHandler = channel.objects.jsHandler;
                     console.log("Channel initialized");
                 });
+                map.on('click', function(e) {
+                if (activeMarker && activeMarker.options.draggable) {
+                    var clickCoords = e.latlng;
+                    activeMarker.setLatLng(clickCoords);
+                    activeMarker.fire('dragend', { target: activeMarker });
+                    document.getElementById('coordinates').innerText = "Coordinates: " + clickCoords.lat.toFixed(7) + ", " + clickCoords.lng.toFixed(7);
+                }
+            });
 
                 function removeMarkers() {
                     //console.log("current count of markers "+markers.length+", start delete);
@@ -187,6 +196,7 @@ class MapWidget(QWebEngineView):
                     }
                     // Clear the markers array
                     markers = [];
+                    activeMarker = null;
                     //console.log("after delete markers is  "+markers.length);
                 }
                 function addMarker(position, markerclass, draggable=true) {
@@ -212,28 +222,23 @@ class MapWidget(QWebEngineView):
                     icon: icon
                     }).addTo(map);
                     
+                    if (draggable) {
+                    activeMarker = marker;
+                    }
 
                     marker.on('dragend', function(e) {
                         var coords = e.target.getLatLng();
                         document.getElementById('coordinates').innerText = "Coordinates: " + coords.lat.toFixed(7) + ", " + coords.lng.toFixed(7);
                         if (window.jsHandler) {
-                            //console.log("Sending coordinates to channel: " + coords.lat.toFixed(4) + ", " + coords.lng.toFixed(4));
+                            console.log("Sending coordinates to channel: " + coords.lat.toFixed(4) + ", " + coords.lng.toFixed(4));
                             window.jsHandler.coordinatesUpdatedSlot(coords.lat.toFixed(7), coords.lng.toFixed(7));
                         } else {
                             console.log("jsHandler is not defined");
                         }
                     });
                     
-                    
-                    // Move marker to click location
-                    if (draggable) {
-                        map.on('click', function(e) {
-                            var clickCoords = e.latlng;
-                            marker.setLatLng(clickCoords);
-                            marker.fire('dragend', { target: marker });
-                            document.getElementById('coordinates').innerText = "Coordinates: " + clickCoords.lat.toFixed(7) + ", " + clickCoords.lng.toFixed(7);
-                        });
-                        }
+
+
                     markers.push(marker); // array of markers to remove all markers
                     }
                     function move_to_favorite_place(position, zoom) {
@@ -478,9 +483,9 @@ class RaskladGeotag(QMainWindow):
         self.label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         self.label.setMinimumHeight(400)
-        self.label.setScaledContents(True)
+        self.label.setScaledContents(False)
         self.label.setSizePolicy(
-            QSizePolicy.Policy.MinimumExpanding, QSizePolicy.Policy.Preferred
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
         )
 
         self.select_button = QPushButton("Select Folder", self)
@@ -818,6 +823,9 @@ class RaskladGeotag(QMainWindow):
 
         self.mapMarkerLat = lat
         self.mapMarkerLon = lon
+        
+        import time
+        print(time.time_ns())
         selected = set([])
         for it in self.table.selectedItems():
             selected.add(it.text())
@@ -984,7 +992,7 @@ class RaskladGeotag(QMainWindow):
                         if ret == QMessageBox.StandardButton.Retry:
                             continue
                         elif ret == QMessageBox.StandardButton.Ignore:
-                            pass
+                            continue
                         elif ret == QMessageBox.StandardButton.Cancel:
                             break
 
@@ -1202,10 +1210,14 @@ class RaskladGeotag(QMainWindow):
             self.mainfile_selected = full_path
             self.file_path_label.setText(f"Selected File Path: {full_path}")
             pixmap = QPixmap(full_path)
+            # Safely check if the label has a valid layout size yet
+            target_width = max(self.label.width(), 100)
+            target_height = max(self.label.height(), 100)
+            
             self.label.setPixmap(
                 pixmap.scaled(
-                    500,#self.label.width(),
-                    500,#self.label.height(),
+                    target_width,
+                    target_height,
                     Qt.AspectRatioMode.KeepAspectRatio,
                     Qt.TransformationMode.SmoothTransformation
                 )
