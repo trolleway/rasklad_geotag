@@ -130,6 +130,7 @@ class CustomProgressBar(QProgressBar):
 class MapWidget(QWebEngineView):
     def __init__(self):
         super().__init__()
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.setPage(CustomWebEnginePage(self))
         self.channel = QWebChannel()
         self.jsHandler = JavaScriptHandler()
@@ -158,7 +159,12 @@ class MapWidget(QWebEngineView):
             <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
             <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
             <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
-            <style> #map { width: 100%; height: 100%; } .leaflet-control-attribution svg {
+            <style> html, body {
+                height: 100%;
+                margin: 0;
+                padding: 0;
+            }
+            #map { width: 100%; height: 100%; } .leaflet-control-attribution svg {
     display: none !important;
 }
 
@@ -169,8 +175,8 @@ class MapWidget(QWebEngineView):
 } </style>
         </head>
         <body>
-            <div id="map" style="height: 500px;"></div>
-            <div id="coordinates">Coordinates: </div>
+            <div id="map" style="height: 100%"></div>
+            
             <script>
                 var map = L.map('map',{
             wheelPxPerZoomLevel: 10 
@@ -228,7 +234,7 @@ class MapWidget(QWebEngineView):
                     var clickCoords = e.latlng;
                     activeMarker.setLatLng(clickCoords);
                     activeMarker.fire('dragend', { target: activeMarker });
-                    document.getElementById('coordinates').innerText = "Coordinates: " + clickCoords.lat.toFixed(7) + ", " + clickCoords.lng.toFixed(7);
+                
                 }
             });
 
@@ -272,7 +278,7 @@ class MapWidget(QWebEngineView):
 
                     marker.on('dragend', function(e) {
                         var coords = e.target.getLatLng();
-                        document.getElementById('coordinates').innerText = "Coordinates: " + coords.lat.toFixed(7) + ", " + coords.lng.toFixed(7);
+                        
                         if (window.jsHandler) {
                             console.log("Sending coordinates to channel: " + coords.lat.toFixed(4) + ", " + coords.lng.toFixed(4));
                             window.jsHandler.coordinatesUpdatedSlot(coords.lat.toFixed(7), coords.lng.toFixed(7));
