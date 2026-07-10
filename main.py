@@ -59,6 +59,42 @@ class JavaScriptHandler(QObject):
     def coordinatesUpdatedSlot(self, lat, lng):
         self.coordinatesUpdated.emit(lat, lng)
 
+class CoverWidthLabel(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.pixmap = QPixmap()
+
+    def setPixmap(self, pixmap):
+        self.pixmap = pixmap
+        self.update() # Triggers a repaint
+
+    def paintEvent(self, event):
+        if self.pixmap.isNull():
+            super().paintEvent(event)
+            return
+
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
+
+        # Get container dimensions
+        canvas_w = self.width()
+        canvas_h = self.height()
+
+        # Get original image dimensions
+        img_w = self.pixmap.width()
+        img_h = self.pixmap.height()
+
+        # Calculate height based strictly on matching target canvas width
+        scale_factor = canvas_w / img_w
+        new_w = canvas_w
+        new_h = int(img_h * scale_factor)
+
+        # Center vertically: calculate where the top edge should sit
+        # If new_h > canvas_h, this value becomes negative, clipping the top/bottom equally
+        y_offset = (canvas_h - new_h) // 2
+
+        # Draw the scaled image into the calculated geometry boundary
+        painter.drawPixmap(0, y_offset, new_w, new_h, self.pixmap)
 
 class CustomProgressBar(QProgressBar):
     def paintEvent(self, event):
@@ -122,7 +158,15 @@ class MapWidget(QWebEngineView):
             <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
             <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
             <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
-            <style> #map { width: 100%; height: 100%; } </style>
+            <style> #map { width: 100%; height: 100%; } .leaflet-control-attribution svg {
+    display: none !important;
+}
+
+/* Insert the word "Flag" before the Leaflet link */
+.leaflet-control-attribution a[href^="https://leafletjs.com"]::before {
+    content: "Flag ";
+    display: inline;
+} </style>
         </head>
         <body>
             <div id="map" style="height: 500px;"></div>
@@ -479,15 +523,11 @@ class RaskladGeotag(QMainWindow):
         layout_horizontal = QHBoxLayout()
         layout = QVBoxLayout()
 
-        self.label = QLabel(self)
-        self.label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-
+        self.label = CoverWidthLabel(self)
         self.label.setMinimumHeight(400)
-        self.label.setScaledContents(False)
         self.label.setSizePolicy(
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
         )
-
         self.select_button = QPushButton("Select Folder", self)
 
         self.select_button.setIcon(
@@ -540,20 +580,6 @@ class RaskladGeotag(QMainWindow):
             self.update_coordinate_in_mainfiles
         )
 
-        self.add_marker_button = QPushButton("Add Marker to Center")
-        self.add_marker_button.clicked.connect(self.add_marker)
-        layout_vertical_right.addWidget(self.add_marker_button)
-        self.add_layers_button = QPushButton("Set layers")
-        self.add_layers_button.clicked.connect(self.reload_TMS_layers)
-        layout_vertical_right.addWidget(self.add_layers_button)
-        
-        self.map_fav_widget = QListWidget()
-        self.map_fav_widget.setFixedHeight(150)
-        layout_vertical_right.addWidget(self.map_fav_widget)
-        self.coordinate_set_progressBar = CustomProgressBar()
-        self.coordinate_set_progressBar.setValue(0)  # Set the percentage value here
-        layout_vertical_right.addWidget(self.coordinate_set_progressBar)
-
         # tab1
         tab_enter_coordinates_mode = QWidget()
         layout_enter_coordinates_mode = QVBoxLayout()
@@ -571,7 +597,7 @@ class RaskladGeotag(QMainWindow):
 
         # tab group
         self.label_mode = QLabel("Mode:")
-        layout.addWidget(self.label_mode)
+        layout_vertical_right.addWidget(self.label_mode)
         self.tab_mode = QTabWidget()
         self.tab_mode.addTab(tab_enter_coordinates_mode, "Enter image coordinates")
         self.tab_mode.addTab(tab_enter_dest_coordinates_mode, "Enter dest coordinates")
@@ -595,10 +621,24 @@ class RaskladGeotag(QMainWindow):
             }
         """
         )
-        layout.addWidget(self.tab_mode)
+        layout_vertical_right.addWidget(self.tab_mode)
 
-        layout.addWidget(self.coordinates_label)
-        layout.addWidget(self.save_button)
+        layout_vertical_right.addWidget(self.coordinates_label)
+        layout_vertical_right.addWidget(self.save_button)
+
+        self.add_marker_button = QPushButton("Add Marker to Center")
+        self.add_marker_button.clicked.connect(self.add_marker)
+        layout_vertical_right.addWidget(self.add_marker_button)
+        self.add_layers_button = QPushButton("Set layers")
+        self.add_layers_button.clicked.connect(self.reload_TMS_layers)
+        layout_vertical_right.addWidget(self.add_layers_button)
+        
+        self.map_fav_widget = QListWidget()
+        self.map_fav_widget.setFixedHeight(150)
+        layout_vertical_right.addWidget(self.map_fav_widget)
+        self.coordinate_set_progressBar = CustomProgressBar()
+        self.coordinate_set_progressBar.setValue(0)  # Set the percentage value here
+        layout_vertical_right.addWidget(self.coordinate_set_progressBar)
 
         widget.setLayout(layout_horizontal)
         self.marker_coordinates = None
@@ -1211,17 +1251,7 @@ class RaskladGeotag(QMainWindow):
             self.file_path_label.setText(f"Selected File Path: {full_path}")
             pixmap = QPixmap(full_path)
             # Safely check if the label has a valid layout size yet
-            target_width = max(self.label.width(), 100)
-            target_height = max(self.label.height(), 100)
-            
-            self.label.setPixmap(
-                pixmap.scaled(
-                    target_width,
-                    target_height,
-                    Qt.AspectRatioMode.KeepAspectRatio,
-                    Qt.TransformationMode.SmoothTransformation
-                )
-            )
+            self.label.setPixmap(pixmap) 
             file_url = QUrl.fromLocalFile(full_path).toString()
             self.link_label.setText(f'<a href="{file_url}" style="color: #0066cc; text-decoration: underline;">Open original image in system viewer</a>')
             #self.label.setScaledContents(True)
